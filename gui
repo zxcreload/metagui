@@ -1,0 +1,623 @@
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/i77lhm/vaderpaste/refs/heads/main/library.lua"))()
+local flags = library.flags
+
+local window = library:window({
+    name = "metabreaker.lua",
+    size = UDim2.fromOffset(500, 650),
+    center = true,
+    auto_show = true,
+    accent = Color3.fromRGB(255, 0, 0, 1)
+})
+
+-- Create tabs
+local Combat = window:tab({name = "Combat"})
+local Movement = window:tab({name = "Movement"})
+local Visuals = window:tab({name = "Visuals"})
+local Misc = window:tab({name = "Misc"})
+local Config = window:tab({name = "Config"})
+
+-- Visuals tab - Backtrack section
+do
+    local backtrack_section = Visuals:section({name = "Backtrack", side = "left"})
+    
+    -- Основной тогл для активации/деактивации backtrack
+    local backtrack_toggle = backtrack_section:toggle({
+        name = "Enable Backtrack",
+        flag = "backtrack_enabled",
+        default = false,
+        tooltip = "Enables/disables backtrack clone display",
+        callback = function(bool)
+            if bool then
+                -- Инициализируем переменные из библиотеки flags
+                local positionDelay = flags["backtrack_position_delay"] or 1
+                local movementDelay = flags["backtrack_movement_delay"] or 0.5
+                local jumpDelay = flags["backtrack_jump_delay"] or 0.75
+                local chamType = flags["backtrack_cham_type"] or "Normal"
+                local updateRate = flags["backtrack_update_rate"] or 30 -- FPS для обновления
+                
+                -- Загружаем скрипт backtrack
+                local Players = game:GetService("Players")
+                local RunService = game:GetService("RunService")
+                local Stats = game:GetService("Stats")
+
+                local player = Players.LocalPlayer
+                local character = player.Character or player.CharacterAdded:Wait()
+
+                local cloneModel = Instance.new("Model")
+                cloneModel.Name = "0x78"
+
+                local originalHRP = character:WaitForChild("HumanoidRootPart")
+                local cloneHRP = nil
+                local accessoriesCount = 0
+                local partMap = {}
+                local cloneHumanoid = nil
+
+                -- Буферы для хранения позиций, движений и прыжков с временными метками
+                local positionBuffer = {} -- Для горизонтальной позиции (X, Z)
+                local movementBuffer = {} -- Для движений (CFrame для ориентации и частей)
+                local jumpBuffer = {} -- Для вертикальной позиции (Y, прыжки)
+                
+                -- Максимальный размер буферов (для оптимизации памяти)
+                local maxBufferSize = 60 -- Ограничиваем размер буфера
+                
+                -- Переменные для контроля частоты обновления
+                local lastUpdateTime = 0
+                local updateInterval = 1 / updateRate
+
+                local function disableCollision(part)
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Anchored = true
+                    end
+                end
+
+                local function disableCollisionRecursive(object)
+                    for _, child in pairs(object:GetDescendants()) do
+                        disableCollision(child)
+                    end
+                end
+                
+                -- Оптимизированное клонирование - создаем только необходимые части
+                local function optimizedClone()
+                    -- Список важных частей для клонирования
+                    local essentialParts = {
+                        "Head", "Torso", "HumanoidRootPart", 
+                        "Left Arm", "Right Arm", "Left Leg", "Right Leg",
+                        "UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm",
+                        "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
+                        "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg",
+                        "LeftFoot", "RightFoot"
+                    }
+                    
+                    -- Создаем словарь для быстрого поиска
+                    local essentialPartsDict = {}
+                    for _, name in ipairs(essentialParts) do
+                        essentialPartsDict[name] = true
+                    end
+                    
+                    -- Клонирование модели игрока, только важные части
+                    for _, child in pairs(character:GetDescendants()) do
+                        if child:IsA("BasePart") and not child.Parent:IsA("Accessory") and 
+                           (essentialPartsDict[child.Name] or flags["backtrack_quality"] == "High") then
+                            local clonePart = child:Clone()
+                            
+                            -- Удаляем лишние компоненты
+                            for _, descendant in pairs(clonePart:GetDescendants()) do
+                                if descendant:IsA("Motor6D") or descendant:IsA("Weld") then
+                                    descendant:Destroy()
+                                end
+                            end
+                            
+                            -- Упрощаем голову для оптимизации
+                            if clonePart.Name == "Head" and clonePart:IsA("MeshPart") then
+                                clonePart.TextureID = ""
+                            end
+                            
+                            disableCollision(clonePart)
+                            clonePart.Parent = cloneModel
+                            
+                            if clonePart.Name == "HumanoidRootPart" then
+                                cloneHRP = clonePart
+                                cloneHRP.Transparency = 1 -- Делаем HRP полностью прозрачным
+                            end
+                            
+                            partMap[clonePart] = child
+                        elseif child:IsA("Accessory") and flags["backtrack_quality"] == "High" then
+                            -- Клонируем аксессуары только в высоком качестве
+                            accessoriesCount = accessoriesCount + 1
+                            local cloneAccessory = child:Clone()
+                            
+                            for _, accessoryPart in pairs(cloneAccessory:GetDescendants()) do
+                                if accessoryPart:IsA("Motor6D") or accessoryPart:IsA("Weld") or accessoryPart:IsA("Attachment") then
+                                    accessoryPart:Destroy()
+                                end
+                                
+                                if accessoryPart:IsA("MeshPart") and accessoryPart.Name == "Handle" then
+                                    accessoryPart.Name = "Handle_" .. child.Name .. "_" .. accessoriesCount
+                                    disableCollision(accessoryPart)
+                                    local originalHandle = child:FindFirstChild("Handle")
+                                    if originalHandle then
+                                        partMap[accessoryPart] = originalHandle
+                                    end
+                                end
+                            end
+                            
+                            disableCollisionRecursive(cloneAccessory)
+                            cloneAccessory.Parent = cloneModel
+                        elseif (child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic")) and 
+                               flags["backtrack_quality"] ~= "Low" then
+                            local cloned = child:Clone()
+                            disableCollisionRecursive(cloned)
+                            cloned.Parent = cloneModel
+                        elseif child:IsA("Humanoid") then
+                            cloneHumanoid = child:Clone()
+                            cloneHumanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
+                            cloneHumanoid.NameDisplayDistance = 9999999
+                            cloneHumanoid.Parent = cloneModel
+                        end
+                    end
+                end
+                
+                -- Вызываем оптимизированное клонирование
+                optimizedClone()
+                
+                disableCollisionRecursive(cloneModel)
+                
+                cloneModel.PrimaryPart = cloneHRP
+                cloneModel.Parent = workspace
+
+                -- Применяем выбранный тип chams
+                local function applyChamType()
+                    local selectedChamType = flags["backtrack_cham_type"]
+                    -- Исправляем получение цвета - colorpicker возвращает таблицу с полями Color и Transparency
+                    local chamColor = Color3.fromRGB(255, 0, 0) -- Значение по умолчанию
+                    if flags["backtrack_cham_color"] then
+                        if type(flags["backtrack_cham_color"]) == "table" and flags["backtrack_cham_color"].Color then
+                            chamColor = flags["backtrack_cham_color"].Color
+                        end
+                    end
+                    
+                    -- Удаляем все существующие highlight
+                    for _, part in pairs(cloneModel:GetDescendants()) do
+                        if part:IsA("Highlight") then
+                            part:Destroy()
+                        end
+                    end
+                    
+                    -- Применяем соответствующий материал и цвет
+                    for part, _ in pairs(partMap) do
+                        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                            if selectedChamType == "Normal" then
+                                part.Material = Enum.Material.SmoothPlastic
+                                part.Color = chamColor
+                                part.Transparency = flags["backtrack_transparency"] or 0.5
+                            elseif selectedChamType == "Forcefield" then
+                                part.Material = Enum.Material.ForceField
+                                part.Color = chamColor
+                                part.Transparency = 0.2
+                            elseif selectedChamType == "Highlight" then
+                                part.Material = Enum.Material.SmoothPlastic
+                                part.Transparency = 0.8
+                                
+                                -- Создаем highlight для части
+                                local highlight = Instance.new("Highlight")
+                                highlight.FillColor = chamColor
+                                highlight.OutlineColor = chamColor
+                                highlight.FillTransparency = 0.3
+                                highlight.OutlineTransparency = 0.5
+                                highlight.Parent = part
+                            end
+                        end
+                    end
+                end
+                
+                -- Применяем текущие настройки chams
+                applyChamType()
+
+                -- Функция для получения отложенной горизонтальной позиции (X, Z)
+                local function getDelayedPosition(currentTime)
+                    while #positionBuffer > 0 and (currentTime - positionBuffer[1].time) > positionDelay do
+                        table.remove(positionBuffer, 1)
+                    end
+                    if #positionBuffer > 0 then
+                        return positionBuffer[1].position
+                    end
+                    return Vector2.new(originalHRP.Position.X, originalHRP.Position.Z)
+                end
+
+                -- Функция для получения отложенного CFrame (для ориентации и движений)
+                local function getDelayedMovement(currentTime)
+                    while #movementBuffer > 0 and (currentTime - movementBuffer[1].time) > movementDelay do
+                        table.remove(movementBuffer, 1)
+                    end
+                    if #movementBuffer > 0 then
+                        return movementBuffer[1].cframe
+                    end
+                    return originalHRP.CFrame
+                end
+
+                -- Функция для получения отложенной вертикальной позиции (Y, прыжки)
+                local function getDelayedJump(currentTime)
+                    while #jumpBuffer > 0 and (currentTime - jumpBuffer[1].time) > jumpDelay do
+                        table.remove(jumpBuffer, 1)
+                    end
+                    if #jumpBuffer > 0 then
+                        return jumpBuffer[1].y
+                    end
+                    return originalHRP.Position.Y
+                end
+
+                local performanceStats = Stats:FindFirstChild("PerformanceStats")
+                if performanceStats then
+                    local pingStat = performanceStats.Ping
+                    local lastPingText = nil
+
+                    -- Сохраняем heartbeat connection чтобы можно было его отключить при выключении backtrack
+                    _G.backtrackHeartbeatConnection = RunService.Heartbeat:Connect(function()
+                        local currentTime = tick()
+                        
+                        -- Оптимизация: обновляем только на заданной частоте кадров
+                        if (currentTime - lastUpdateTime) < updateInterval then
+                            return
+                        end
+                        lastUpdateTime = currentTime
+                        
+                        -- Получаем обновленный показатель FPS из настроек
+                        updateRate = flags["backtrack_update_rate"] or 30
+                        updateInterval = 1 / updateRate
+                        
+                        if originalHRP and cloneHRP then
+                            -- Добавляем текущую горизонтальную позицию (X, Z) в буфер позиций
+                            table.insert(positionBuffer, {
+                                time = currentTime,
+                                position = Vector2.new(originalHRP.Position.X, originalHRP.Position.Z)
+                            })
+                            
+                            -- Ограничиваем размер буфера для экономии памяти
+                            if #positionBuffer > maxBufferSize then
+                                table.remove(positionBuffer, 1)
+                            end
+
+                            -- Добавляем текущий CFrame в буфер движений
+                            table.insert(movementBuffer, {
+                                time = currentTime,
+                                cframe = originalHRP.CFrame
+                            })
+                            
+                            -- Ограничиваем размер буфера для экономии памяти
+                            if #movementBuffer > maxBufferSize then
+                                table.remove(movementBuffer, 1)
+                            end
+
+                            -- Добавляем текущую Y-координату в буфер прыжков
+                            table.insert(jumpBuffer, {
+                                time = currentTime,
+                                y = originalHRP.Position.Y
+                            })
+                            
+                            -- Ограничиваем размер буфера для экономии памяти
+                            if #jumpBuffer > maxBufferSize then
+                                table.remove(jumpBuffer, 1)
+                            end
+
+                            -- Получаем отложенные значения с обновлёнными значениями из интерфейса
+                            positionDelay = flags["backtrack_position_delay"] or 1
+                            movementDelay = flags["backtrack_movement_delay"] or 0.5
+                            jumpDelay = flags["backtrack_jump_delay"] or 0.75
+                            
+                            local delayedXZ = getDelayedPosition(currentTime)
+                            local delayedY = getDelayedJump(currentTime)
+                            local delayedMovement = getDelayedMovement(currentTime)
+
+                            -- Устанавливаем позицию клона с отложенными X, Z и Y, с отложенной ориентацией
+                            cloneHRP.CFrame = CFrame.new(Vector3.new(delayedXZ.X, delayedY, delayedXZ.Y)) * CFrame.Angles(delayedMovement:ToEulerAnglesXYZ())
+
+                            -- Обновляем позиции всех частей клона на основе отложенного CFrame
+                            -- Оптимизация: не обновляем слишком часто при низком качестве
+                            local quality = flags["backtrack_quality"] or "Medium"
+                            
+                            for clonedPart, originalPart in pairs(partMap) do
+                                if originalPart and clonedPart then
+                                    local relativeCF = originalHRP.CFrame:ToObjectSpace(originalPart.CFrame)
+                                    clonedPart.CFrame = cloneHRP.CFrame * relativeCF
+                                    disableCollision(clonedPart)
+                                end
+                            end
+
+                            -- Обновляем пинг, если включено
+                            if cloneHumanoid and flags["backtrack_show_ping"] then
+                                local pingText = math.floor(tonumber(pingStat:GetValue())) .. " ms"
+                                if pingText ~= lastPingText then
+                                    cloneHumanoid.DisplayName = pingText
+                                    lastPingText = pingText
+                                end
+                            else
+                                cloneHumanoid.DisplayName = ""
+                            end
+                            
+                            -- Обновляем тип chams, если изменен
+                            if chamType ~= flags["backtrack_cham_type"] then
+                                chamType = flags["backtrack_cham_type"]
+                                applyChamType()
+                            end
+                            
+                            -- Обновляем прозрачность модели, если изменена
+                            local currentTransparency = flags["backtrack_transparency"] or 0.5
+                            for part, _ in pairs(partMap) do
+                                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and chamType == "Normal" then
+                                    part.Transparency = currentTransparency
+                                end
+                            end
+                        end
+                    end)
+                end
+            else
+                -- Удаляем backtrack модель при отключении
+                local cloneModel = workspace:FindFirstChild("0x78")
+                if cloneModel then
+                    cloneModel:Destroy()
+                end
+                
+                -- Отключаем Heartbeat соединение
+                if _G.backtrackHeartbeatConnection then
+                    _G.backtrackHeartbeatConnection:Disconnect()
+                    _G.backtrackHeartbeatConnection = nil
+                end
+            end
+        end
+    })
+    
+    -- Настройка качества и производительности
+    backtrack_section:dropdown({
+        name = "Quality",
+        flag = "backtrack_quality",
+        items = {"Low", "Medium", "High"},
+        default = "Medium",
+        tooltip = "Sets the quality level of the backtrack clone (impacts performance)",
+        callback = function(option)
+            -- Если backtrack активен, перезапускаем его для применения нового качества
+            if flags["backtrack_enabled"] then
+                local cloneModel = workspace:FindFirstChild("0x78")
+                if cloneModel then
+                    cloneModel:Destroy()
+                end
+                
+                if _G.backtrackHeartbeatConnection then
+                    _G.backtrackHeartbeatConnection:Disconnect()
+                    _G.backtrackHeartbeatConnection = nil
+                end
+                
+                -- Немного ждем перед повторным включением
+                task.delay(0.1, function()
+                    flags["backtrack_enabled"] = true
+                    backtrack_toggle:set(true)
+                end)
+            end
+        end
+    })
+    
+    -- Слайдер для настройки частоты обновления (FPS)
+    backtrack_section:slider({
+        name = "Update Rate",
+        suffix = "fps",
+        flag = "backtrack_update_rate",
+        default = 30,
+        min = 5,
+        max = 60,
+        interval = 5,
+        tooltip = "How often the backtrack clone updates (lower = better performance)"
+    })
+    
+    -- Sliders для настройки задержек
+    backtrack_section:slider({
+        name = "Position Delay (X,Z)",
+        suffix = "sec",
+        flag = "backtrack_position_delay",
+        default = 1,
+        min = 0,
+        max = 3,
+        interval = 0.05,
+        tooltip = "Delay for horizontal position (X, Z) in seconds"
+    })
+    
+    backtrack_section:slider({
+        name = "Yaw delay",
+        suffix = "sec",
+        flag = "backtrack_movement_delay",
+        default = 0.5,
+        min = 0,
+        max = 3,
+        interval = 0.05,
+        tooltip = "Delay for movements in seconds"
+    })
+    
+    backtrack_section:slider({
+        name = "Jump Delay (Y)",
+        suffix = "sec",
+        flag = "backtrack_jump_delay",
+        default = 0.75,
+        min = 0,
+        max = 3,
+        interval = 0.05,
+        tooltip = "Delay for jumps (Y) in seconds"
+    })
+    
+    -- Slider для прозрачности
+    backtrack_section:slider({
+        name = "Transparency",
+        suffix = "%",
+        flag = "backtrack_transparency",
+        default = 50,
+        min = 0,
+        max = 100,
+        interval = 1,
+        tooltip = "Backtrack clone transparency",
+        callback = function(value)
+            flags["backtrack_transparency"] = value / 100
+        end
+    })
+    
+    -- Dropdown для выбора типа chams
+    backtrack_section:dropdown({
+        name = "Chams Type",
+        flag = "backtrack_cham_type",
+        items = {"Normal", "Forcefield", "Highlight"},
+        default = "Normal",
+        tooltip = "Select the type of backtrack clone display",
+        callback = function(option)
+            -- Применяем новый тип чамсов если backtrack активен
+            if flags["backtrack_enabled"] and workspace:FindFirstChild("0x78") then
+                local cloneModel = workspace:FindFirstChild("0x78")
+                local chamColor = Color3.fromRGB(255, 0, 0)
+                
+                -- Получаем актуальный цвет
+                if flags["backtrack_cham_color"] and type(flags["backtrack_cham_color"]) == "table" and flags["backtrack_cham_color"].Color then
+                    chamColor = flags["backtrack_cham_color"].Color
+                end
+                
+                -- Удаляем существующие highlight
+                for _, part in pairs(cloneModel:GetDescendants()) do
+                    if part:IsA("Highlight") then
+                        part:Destroy()
+                    end
+                end
+                
+                -- Применяем новый тип чамсов ко всем частям
+                for _, part in pairs(cloneModel:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        if option == "Normal" then
+                            part.Material = Enum.Material.SmoothPlastic
+                            part.Color = chamColor
+                            part.Transparency = flags["backtrack_transparency"] or 0.5
+                        elseif option == "Forcefield" then
+                            part.Material = Enum.Material.ForceField
+                            part.Color = chamColor
+                            part.Transparency = 0.2
+                        elseif option == "Highlight" then
+                            part.Material = Enum.Material.SmoothPlastic
+                            part.Transparency = 0.8
+                            
+                            -- Создаем highlight для части
+                            local highlight = Instance.new("Highlight")
+                            highlight.FillColor = chamColor
+                            highlight.OutlineColor = chamColor
+                            highlight.FillTransparency = 0.3
+                            highlight.OutlineTransparency = 0.5
+                            highlight.Parent = part
+                        end
+                    end
+                end
+            end
+        end
+    })
+    
+    -- Colorpicker для настройки цвета
+    backtrack_section:colorpicker({
+        name = "Backtrack Color",
+        flag = "backtrack_cham_color",
+        default = Color3.fromRGB(255, 0, 0),
+        callback = function(color, alpha)
+            -- Проверяем текущий режим и применяем цвет
+            if flags["backtrack_enabled"] and workspace:FindFirstChild("0x78") then
+                local selectedChamType = flags["backtrack_cham_type"]
+                local cloneModel = workspace:FindFirstChild("0x78")
+                
+                -- Обновляем цвета на частях модели
+                for _, part in pairs(cloneModel:GetDescendants()) do
+                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                        part.Color = color
+                    end
+                    
+                    -- Обновляем цвет в подсветке, если используется режим Highlight
+                    if part:IsA("Highlight") then
+                        part.FillColor = color
+                        part.OutlineColor = color
+                    end
+                end
+            end
+        end
+    })
+    
+    -- Toggle для отображения пинга
+    backtrack_section:toggle({
+        name = "Show Ping",
+        flag = "backtrack_show_ping",
+        default = true,
+        tooltip = "Shows current ping above the backtrack clone"
+    })
+end
+
+-- Config tab sections
+do
+    -- Configuration System (left side)
+    local config_section = Config:section({name = "Configuration System", side = "left"})
+    library.config_holder = config_section:dropdown({name = "Configs", items = {}, flag = "config_name_list"})
+    config_section:textbox({flag = "config_name_text_box"})
+    config_section:button({name = "Create", callback = function()
+        writefile(library.directory .. "/configs/" .. flags["config_name_text_box"] .. ".cfg", library:get_config())
+        library:config_list_update()
+    end})
+    config_section:button({name = "Delete", callback = function()
+        library:panel({
+            name = "Are you sure you want to delete " .. flags["config_name_list"] .. " ?",
+            options = {"Yes", "No"},
+            callback = function(option)
+                if option == "Yes" then
+                    delfile(library.directory .. "/configs/" .. flags["config_name_list"] .. ".cfg")
+                    library:config_list_update()
+                end
+            end
+        })
+    end})
+    config_section:button({name = "Load", callback = function()
+        library:load_config(readfile(library.directory .. "/configs/" .. flags["config_name_list"] .. ".cfg"))
+    end})
+    config_section:button({name = "Save", callback = function()
+        writefile(library.directory .. "/configs/" .. flags["config_name_text_box"] .. ".cfg", library:get_config())
+        library:config_list_update()
+    end})
+    config_section:button({name = "Unload Config", callback = function()
+        library:load_config(old_config)
+    end})
+    config_section:button({name = "Unload Menu", callback = function()
+        library:unload()
+    end})
+
+    -- Theming System (right side)
+    local theming_section = Config:section({name = "HUD elements", side = "right"})
+    theming_section:toggle({
+        name = "Keybind List",
+        flag = "keybind_list",
+        default = false,
+        callback = function(bool)
+            window.toggle_list(bool)
+        end
+    })
+    theming_section:toggle({
+        name = "Playerlist",
+        flag = "player_list",
+        default = false,
+        callback = function(bool)
+            window.toggle_playerlist(bool)
+        end
+    })
+    theming_section:toggle({
+        name = "Watermark",
+        flag = "watermark",
+        default = false,
+        callback = function(bool)
+            window.toggle_watermark(bool)
+        end
+    })
+    theming_section:colorpicker({
+        name = "Accent Color",
+        flag = "accent_color",
+        default = Color3.fromRGB(214, 52, 52, 0), -- Default accent color from library
+        callback = function(color, alpha)
+            library:update_theme("accent", color)
+        end
+    })
+end
+
+-- Initialize config list
+library:config_list_update()
