@@ -289,42 +289,41 @@ local function createVFXImpact(color, size, duration, texture, position)
     -- Создаем прозрачный объект для эффекта
     local impactPart = Instance.new("Part")
     impactPart.Name = "VFXBulletImpact"
-    impactPart.Transparency = 1  -- Полностью прозрачный
+    impactPart.Transparency = 1
     impactPart.CanCollide = false
     impactPart.Anchored = true
-    impactPart.Size = Vector3.new(2, 2, 2)
+    impactPart.Size = Vector3.new(0.2, 0.2, 0.2) -- Меньший размер, так как BillboardGui будет визуальным элементом
     impactPart.Position = position
     impactPart.Parent = Workspace
     
-    -- Создаем Attachment
-    local attachment = Instance.new("Attachment")
-    attachment.Parent = impactPart
+    -- Создаем BillboardGui
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ImpactBillboard"
+    billboard.Adornee = impactPart
+    billboard.Size = UDim2.new(size, 0, size, 0) -- Размер эффекта, аналогичный ParticleEmitter
+    billboard.StudsOffset = Vector3.new(0, 0, 0)
+    billboard.AlwaysOnTop = true -- Ключевое свойство: рендерится поверх всех объектов
+    billboard.Parent = impactPart
     
-    -- Создаем ParticleEmitter
-    local particleEmitter = Instance.new("ParticleEmitter")
-    particleEmitter.RotSpeed = NumberRange.new(360)
-    particleEmitter.LockedToPart = true
-    particleEmitter.ZOffset = 5
-    particleEmitter.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1, 0),
-        NumberSequenceKeypoint.new(0.4947145879268646, 0, 0),
-        NumberSequenceKeypoint.new(1, 1, 0)
-    })
-    particleEmitter.Texture = texture
-    particleEmitter.Lifetime = NumberRange.new(1)
-    particleEmitter.Speed = NumberRange.new(0)
-    particleEmitter.LightEmission = 1
-    particleEmitter.Rate = 1  -- Только одна частица
-    particleEmitter.Size = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, size, 0),
-        NumberSequenceKeypoint.new(1, size, 0)
-    })
-    particleEmitter.Color = ColorSequence.new(color)
-    particleEmitter.Parent = attachment
+    -- Создаем ImageLabel для текстуры
+    local imageLabel = Instance.new("ImageLabel")
+    imageLabel.Size = UDim2.new(1, 0, 1, 0)
+    imageLabel.BackgroundTransparency = 1
+    imageLabel.Image = texture -- Используем ту же текстуру
+    imageLabel.ImageColor3 = color -- Применяем цвет
+    imageLabel.Parent = billboard
     
-    -- Эмитируем один раз и останавливаем
-    particleEmitter:Emit(1)
-    particleEmitter.Enabled = false
+    -- Добавляем вращение, как у ParticleEmitter
+    local rotationTween = TweenService:Create(imageLabel, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Rotation = 360 -- Вращение на 360 градусов за время эффекта
+    })
+    rotationTween:Play()
+    
+    -- Анимация прозрачности для имитации ParticleEmitter
+    local transparencyTween = TweenService:Create(imageLabel, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        ImageTransparency = 1 -- Затухание до полной прозрачности
+    })
+    transparencyTween:Play()
     
     -- Удаляем эффект через указанное время
     task.delay(duration, function()
