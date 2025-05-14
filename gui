@@ -621,3 +621,352 @@ end
 
 -- Initialize config list
 library:config_list_update()
+
+-- Visuals tab - ESP section
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local localPlayer = Players.LocalPlayer
+local espCache = {}
+
+-- Вспомогательная функция для получения Color3 из flags
+local function getFlagColor3(flag, default)
+    local v = flags[flag]
+    if typeof(v) == "Color3" then return v end
+    if type(v) == "table" and v.Color and typeof(v.Color) == "Color3" then return v.Color end
+    return default
+end
+
+-- Универсальная функция для получения значения из flags с дефолтом
+local function getFlag(flag, default)
+    if flags[flag] ~= nil then return flags[flag] end
+    return default
+end
+
+-- Функция создания ESP
+local function createESP(player)
+    if player == localPlayer then return end
+    if espCache[player] then
+        if espCache[player].Billboard then
+            espCache[player].Billboard:Destroy()
+        end
+        espCache[player] = nil
+    end
+    local character = player.Character
+    if not character then return end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local torso = character:FindFirstChild("Torso")
+    local anchorPart = humanoidRootPart or torso
+    if not anchorPart then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+    end
+    -- Расчет размеров и позиций
+    local nickHeight = getFlag("esp_nick", true) and 0.5 or 0
+    local infoHeight = getFlag("esp_distance", true) and 0.5 or 0
+    local hpTextHeight = getFlag("esp_hptext", true) and 0.5 or 0
+    local totalWidth = 4 + 2
+    local totalHeight = 6 + nickHeight + infoHeight + hpTextHeight
+    -- Создание BillboardGui
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_" .. player.Name
+    billboard.Adornee = anchorPart
+    billboard.Size = UDim2.new(totalWidth, 0, totalHeight, 0)
+    billboard.StudsOffset = Vector3.new(0, -0.3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    billboard.MaxDistance = getFlag("esp_maxdistance", 500)
+    billboard.Parent = character
+    local boxFrameY = getFlag("esp_nick", true) and getFlag("esp_nickside", "Above") == "Above" and nickHeight / totalHeight or 0
+    -- 2D Box
+    local boxFrame
+    local boxLeftEdge = (totalWidth - 4) / (2 * totalWidth)
+    local boxRightEdge = boxLeftEdge + (4 / totalWidth)
+    if getFlag("esp_box", true) then
+        boxFrame = Instance.new("Frame")
+        boxFrame.Name = "BoxFrame"
+        boxFrame.Size = UDim2.new(4 / totalWidth, 0, 6 / totalHeight, 0)
+        boxFrame.Position = UDim2.new(boxLeftEdge, 0, boxFrameY, 0)
+        boxFrame.BackgroundTransparency = 1
+        boxFrame.Parent = billboard
+
+        local outline = Instance.new("UIStroke")
+        outline.Name = "Outline"
+        outline.Thickness = 3
+        outline.Transparency = 0.3
+        outline.Color = Color3.fromRGB(255,255,255) -- всегда белый
+        outline.Parent = boxFrame
+
+        -- Градиент для outline (UIStroke)
+        local gradient = Instance.new("UIGradient")
+        gradient.Name = "Gradient"
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, getFlagColor3("esp_box_color1", Color3.fromRGB(255,255,255))),
+            ColorSequenceKeypoint.new(1, getFlagColor3("esp_box_color2", Color3.fromRGB(255,255,255)))
+        })
+        gradient.Rotation = 90
+        gradient.Parent = outline
+    end
+    -- HP Bar (Right)
+    local healthBarFrame, healthBarFill, healthGradient
+    if getFlag("esp_hpbar", true) then
+        healthBarFrame = Instance.new("Frame")
+        healthBarFrame.Name = "HealthBarFrame"
+        healthBarFrame.Size = UDim2.new(0.08 / totalWidth, 0, 6 / totalHeight, 0)
+        healthBarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        healthBarFrame.BackgroundTransparency = 0.5
+        -- HP Bar справа от box
+        healthBarFrame.Position = UDim2.new(boxRightEdge + (0.4 / totalWidth), 0, boxFrameY, 0)
+        healthBarFrame.ZIndex = 1
+        healthBarFrame.Parent = billboard
+        healthBarFill = Instance.new("Frame")
+        healthBarFill.Name = "HealthBarFill"
+        healthBarFill.Size = UDim2.new(1, 0, 1, 0)
+        healthBarFill.Position = UDim2.new(0, 0, 0, 0)
+        healthBarFill.BackgroundTransparency = 0
+        healthBarFill.ZIndex = 2
+        healthBarFill.Parent = healthBarFrame
+        healthGradient = Instance.new("UIGradient")
+        healthGradient.Name = "HealthGradient"
+        healthGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, getFlagColor3("esp_hpbar_color1", Color3.fromRGB(0,255,0))),
+            ColorSequenceKeypoint.new(1, getFlagColor3("esp_hpbar_color2", Color3.fromRGB(255,0,0)))
+        })
+        healthGradient.Rotation = 90
+        healthGradient.Parent = healthBarFill
+        local healthCorner = Instance.new("UICorner")
+        healthCorner.Name = "HealthCorner"
+        healthCorner.CornerRadius = UDim.new(0.2, 0)
+        healthCorner.Parent = healthBarFrame
+        local healthOutline = Instance.new("UIStroke")
+        healthOutline.Name = "HealthOutline"
+        healthOutline.Thickness = 1
+        healthOutline.Color = Color3.fromRGB(255, 255, 255)
+        healthOutline.Transparency = 0.5
+        healthOutline.Parent = healthBarFrame
+    end
+    -- Armor Bar (Left)
+    local armorBarFrame, armorBarFill, armorGradient
+    if getFlag("esp_armorbar", true) then
+        armorBarFrame = Instance.new("Frame")
+        armorBarFrame.Name = "ArmorBarFrame"
+        armorBarFrame.Size = UDim2.new(0.08 / totalWidth, 0, 6 / totalHeight, 0)
+        armorBarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        armorBarFrame.BackgroundTransparency = 0.5
+        -- Armor Bar слева от box
+        armorBarFrame.Position = UDim2.new(boxLeftEdge - (0.4 + 0.08) / totalWidth, 0, boxFrameY, 0)
+        armorBarFrame.ZIndex = 1
+        armorBarFrame.Parent = billboard
+        armorBarFill = Instance.new("Frame")
+        armorBarFill.Name = "ArmorBarFill"
+        armorBarFill.Size = UDim2.new(1, 0, 1, 0)
+        armorBarFill.Position = UDim2.new(0, 0, 0, 0)
+        armorBarFill.BackgroundTransparency = 0
+        armorBarFill.ZIndex = 2
+        armorBarFill.Parent = armorBarFrame
+        armorGradient = Instance.new("UIGradient")
+        armorGradient.Name = "ArmorGradient"
+        armorGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, getFlagColor3("esp_armorbar_color1", Color3.fromRGB(0,0,255))),
+            ColorSequenceKeypoint.new(1, getFlagColor3("esp_armorbar_color2", Color3.fromRGB(100,100,255)))
+        })
+        armorGradient.Rotation = 90
+        armorGradient.Parent = armorBarFill
+        local armorCorner = Instance.new("UICorner")
+        armorCorner.Name = "ArmorCorner"
+        armorCorner.CornerRadius = UDim.new(0.2, 0)
+        armorCorner.Parent = armorBarFrame
+        local armorOutline = Instance.new("UIStroke")
+        armorOutline.Name = "ArmorOutline"
+        armorOutline.Thickness = 1
+        armorOutline.Color = Color3.fromRGB(255, 255, 255)
+        armorOutline.Transparency = 0.5
+        armorOutline.Parent = armorBarFrame
+    end
+    -- Никнейм
+    local nickNameText
+    if getFlag("esp_nick", true) then
+        nickNameText = Instance.new("TextLabel")
+        nickNameText.Name = "NickNameText"
+        nickNameText.Size = UDim2.new(1, 0, 0.5 / totalHeight, 0)
+        nickNameText.BackgroundTransparency = 1
+        nickNameText.TextSize = 18 * 0.8
+        nickNameText.TextColor3 = Color3.fromRGB(255,255,255)
+        nickNameText.TextStrokeTransparency = 0
+        nickNameText.Font = Enum.Font.Ubuntu
+        nickNameText.TextScaled = false
+        nickNameText.Text = player.Name
+        nickNameText.ZIndex = 2
+        nickNameText.Position = UDim2.new(0, 0, boxFrameY - (0.5 / totalHeight), 0)
+        nickNameText.Parent = billboard
+    end
+    -- Distance Text
+    local distanceText
+    if getFlag("esp_distance", true) then
+        distanceText = Instance.new("TextLabel")
+        distanceText.Name = "DistanceText"
+        distanceText.Size = UDim2.new(1, 0, 0.5 / totalHeight, 0)
+        distanceText.Position = UDim2.new(0, 0, boxFrameY + (6 / totalHeight), 0)
+        distanceText.BackgroundTransparency = 1
+        distanceText.TextSize = 18
+        distanceText.TextColor3 = Color3.fromRGB(255,255,255)
+        distanceText.TextStrokeTransparency = 0
+        distanceText.Font = Enum.Font.Ubuntu
+        distanceText.TextScaled = false
+        distanceText.Text = ""
+        distanceText.ZIndex = 2
+        distanceText.Parent = billboard
+    end
+    espCache[player] = {
+        Billboard = billboard,
+        Box = boxFrame,
+        HealthBarFrame = healthBarFrame,
+        HealthBarFill = healthBarFill,
+        HealthGradient = healthGradient,
+        ArmorBarFrame = armorBarFrame,
+        ArmorBarFill = armorBarFill,
+        ArmorGradient = armorGradient,
+        NickNameText = nickNameText,
+        DistanceText = distanceText,
+        Character = character,
+        AnchorPart = anchorPart,
+        LastHealth = 0,
+        LastArmor = 0,
+        Player = player
+    }
+end
+
+-- Функция обновления ESP
+local function updateESP()
+    -- Для расчёта дистанции используем только HRP или первую часть тела
+    local localCharacter = localPlayer.Character
+    local localAnchorPart = nil
+    if localCharacter then
+        localAnchorPart = localCharacter:FindFirstChild("HumanoidRootPart")
+        if not localAnchorPart then
+            for _, part in ipairs(localCharacter:GetChildren()) do
+                if part:IsA("BasePart") then
+                    localAnchorPart = part
+                    break
+                end
+            end
+        end
+    end
+    for player, data in pairs(espCache) do
+        if not player or not player.Parent or not data.Character or not data.Character.Parent then
+            if data.Billboard then
+                data.Billboard:Destroy()
+            end
+            espCache[player] = nil
+            continue
+        end
+        local character = data.Character
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        local torso = character:FindFirstChild("Torso")
+        local anchorPart = humanoidRootPart or torso
+        if not humanoid or not anchorPart then
+            data.Billboard.Enabled = false
+            continue
+        end
+        -- Проверка состояния Ragdoll и Grabbed
+        local bodyEffects = character:FindFirstChild("BodyEffects")
+        local isRagdolled = bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value
+        local isGrabbed = character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
+        if getFlag("esp_ignoreragdoll", true) and isRagdolled then
+            data.Billboard.Enabled = false
+            continue
+        end
+        if getFlag("esp_ignoregrabbed", true) and isGrabbed then
+            data.Billboard.Enabled = false
+            continue
+        end
+        -- Проверка дистанции
+        local distance = localAnchorPart and (anchorPart.Position - localAnchorPart.Position).Magnitude or math.huge
+        if distance > getFlag("esp_maxdistance", 500) then
+            data.Billboard.Enabled = false
+            continue
+        end
+        data.Billboard.Adornee = anchorPart
+        data.AnchorPart = anchorPart
+        data.Billboard.Enabled = getFlag("esp_enabled", false)
+        -- Обновление текста расстояния
+        if getFlag("esp_distance", true) and data.DistanceText and localAnchorPart then
+            local distance = (anchorPart.Position - localAnchorPart.Position).Magnitude
+            data.DistanceText.Text = ("%d studs"):format(math.floor(distance))
+        elseif data.DistanceText then
+            data.DistanceText.Text = ""
+        end
+        -- Обновление текста здоровья
+        if getFlag("esp_hptext", true) and humanoid and data.HPText then
+            local healthPercent = humanoid.Health / humanoid.MaxHealth
+            if healthPercent then
+                data.HPText.Text = ("%d%%"):format(math.floor(healthPercent * 100))
+            end
+        elseif data.HPText then
+            data.HPText.Text = ""
+        end
+        -- Обновление никнейма
+        if getFlag("esp_nick", true) and data.NickNameText then
+            data.NickNameText.Text = player.Name
+        end
+    end
+end
+
+-- Функция обновления ESP для всех игроков
+local function refreshESP()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer then
+            createESP(player)
+        end
+    end
+end
+
+-- Очистка при выходе игрока
+Players.PlayerRemoving:Connect(function(player)
+    if espCache[player] then
+        if espCache[player].Billboard then
+            espCache[player].Billboard:Destroy()
+        end
+        espCache[player] = nil
+    end
+end)
+
+-- Периодическое обновление ESP
+spawn(function()
+    while true do
+        if getFlag("esp_enabled", false) then
+            refreshESP()
+            updateESP()
+        else
+            for _, data in pairs(espCache) do
+                if data.Billboard then
+                    data.Billboard.Enabled = false
+                end
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+-- UI для ESP
+local esp_section = Visuals:section({name = "ESP", side = "right"})
+esp_section:toggle({name = "ESP", flag = "esp_enabled", default = false})
+esp_section:toggle({name = "Box", flag = "esp_box", default = true})
+esp_section:colorpicker({name = "Box Color 1", flag = "esp_box_color1", default = Color3.fromRGB(255,255,255)})
+esp_section:colorpicker({name = "Box Color 2", flag = "esp_box_color2", default = Color3.fromRGB(255,255,255)})
+esp_section:toggle({name = "HP Bar", flag = "esp_hpbar", default = true})
+esp_section:colorpicker({name = "HP Bar 1", flag = "esp_hpbar_color1", default = Color3.fromRGB(0,255,0)})
+esp_section:colorpicker({name = "HP Bar 2", flag = "esp_hpbar_color2", default = Color3.fromRGB(255,0,0)})
+esp_section:toggle({name = "Armor Bar", flag = "esp_armorbar", default = true})
+esp_section:colorpicker({name = "Armor Bar 1", flag = "esp_armorbar_color1", default = Color3.fromRGB(0,0,255)})
+esp_section:colorpicker({name = "Armor Bar 2", flag = "esp_armorbar_color2", default = Color3.fromRGB(100,100,255)})
+esp_section:toggle({name = "Name", flag = "esp_nick", default = true})
+esp_section:toggle({name = "Distance", flag = "esp_distance", default = true})
+esp_section:slider({name = "Max Dist", flag = "esp_maxdistance", default = 500, min = 10, max = 100000, interval = 1})
+esp_section:toggle({name = "Ignore Grabbed", flag = "esp_ignoregrabbed", default = true})
+esp_section:toggle({name = "Ignore Ragdoll", flag = "esp_ignoreragdoll", default = true})
+esp_section:slider({name = "Gradient Speed", flag = "esp_gradientspeed", default = 3, min = 0.1, max = 10, interval = 0.1})
