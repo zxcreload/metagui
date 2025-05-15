@@ -378,15 +378,23 @@ end
         end 
 
         function library:apply_theme(instance, theme, property) 
+            if not themes.utility[theme][property] then
+                themes.utility[theme][property] = {}
+            end
             table.insert(themes.utility[theme][property], instance)
         end
 
         function library:update_theme(theme, color)
             for _, property in next, themes.utility[theme] do 
-
                 for m, object in next, property do 
-                    if object[_] == themes.preset[theme] or object.ClassName == "UIGradient" then 
-                        object[_] = color 
+                    if object.ClassName == "UIGradient" and _ == "Color" then
+                        -- Обрабатываем UIGradient отдельно
+                        object.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, color),
+                            ColorSequenceKeypoint.new(1, color)
+                        })
+                    elseif object[_] == themes.preset[theme] or object.ClassName == "UIGradient" then 
+                        object[_] = color
                     end 
                 end 
             end 
@@ -534,11 +542,13 @@ end
                     Parent = name,
                     Name = "",
                     Color = ColorSequence.new{
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                        ColorSequenceKeypoint.new(0.01, themes.preset.accent),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+                        ColorSequenceKeypoint.new(0, themes.preset.accent),
+                        ColorSequenceKeypoint.new(1, themes.preset.accent)
                     }
-                })                
+                })
+                
+                -- Применяем связь с акцентным цветом
+                library:apply_theme(TEXT_ANIMATION_GRADIENT, "accent", "Color")                
                 
                 local UIPadding = library:create("UIPadding", {
                     Parent = tabs,
@@ -729,12 +739,7 @@ end
                     while true do 
                         if flags["color_picker_anim_speed"] then 
                             library.sin = math.abs(math.sin(tick() * flags["color_picker_anim_speed"]))
-
-                            TEXT_ANIMATION_GRADIENT.Color = ColorSequence.new{
-                                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                                ColorSequenceKeypoint.new(math.abs(math.sin(tick())), themes.preset.accent),
-                                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-                            }
+                            -- Градиент теперь статический и настраивается через accent color
                         end 
                         task.wait()
                     end 
