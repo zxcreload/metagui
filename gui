@@ -626,6 +626,26 @@ do
             library:update_theme("accent", color)
         end
     })
+
+    -- Добавляем слайдер для скорости анимации colorpicker
+    config_section:slider({
+        name = "Rainbow Speed",
+        flag = "color_picker_anim_speed",
+        default = 2,
+        min = 0.5,
+        max = 10,
+        interval = 0.5
+    })
+    
+    config_section:keybind({
+        name = "Menu Keybind",
+        flag = "menu_keybind",
+        default = Enum.KeyCode.Insert,
+        keybind_name = "Открыть/закрыть меню",
+        callback = function(bool)
+            window.set_menu_visibility(bool)
+        end
+    })
 end
 
 -- Initialize config list
