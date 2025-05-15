@@ -2650,7 +2650,8 @@ end
                 name = properties.name or properties.Name or "Section", 
                 side = properties.side or properties.Side or "left",
                 tabs = {},
-                current_tab = nil
+                current_tab = nil,
+                fill = properties.fill or properties.Fill or 0
             }
 
             -- Instances
@@ -2736,7 +2737,7 @@ end
                 
                 -- Tab content container
                 local section_tab_content = library:create("Frame", {
-                    Parent = section,
+                    Parent = section_frame,
                     Name = "SectionTabContent",
                     Position = UDim2.new(0, 12, 0, 40), -- Ниже контейнера вкладок
                     BorderColor3 = Color3.fromRGB(0, 0, 0),
@@ -2770,9 +2771,8 @@ end
                 
             -- Добавляем метод для создания вкладки внутри секции
             function cfg:insection_tab(properties)
-                if not self.tabs then
-                    self.tabs = {}
-                end
+                -- Ensure tabs is initialized
+                self.tabs = self.tabs or {}
                 
                 local tab_cfg = {
                     name = properties.name or "Tab",
@@ -2796,7 +2796,7 @@ end
                 
                 -- Создаем контейнер для элементов вкладки
                 local tab_elements = library:create("Frame", {
-                    Parent = self.tab_content,
+                    Parent = self.tab_content or section,
                     Name = tab_cfg.name .. "Content",
                     BorderColor3 = Color3.fromRGB(0, 0, 0),
                     Size = UDim2.new(1, 0, 0, 0),
@@ -2819,22 +2819,55 @@ end
                 
                 -- Функция активации вкладки
                 function tab_cfg.activate()
+                    if not self.current_tab then
+                        self.current_tab = {
+                            elements_frame = {
+                                Visible = false
+                            },
+                            button = {
+                                BackgroundColor3 = Color3.fromRGB(38, 38, 38),
+                                TextColor3 = Color3.fromRGB(170, 170, 170)
+                            }
+                        }
+                    end
+
                     -- Отключаем текущую активную вкладку
                     if self.current_tab then
-                        self.current_tab.elements_frame.Visible = false
-                        self.current_tab.button.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
-                        self.current_tab.button.TextColor3 = Color3.fromRGB(170, 170, 170)
+                        if self.current_tab.elements_frame and self.current_tab.elements_frame.Visible ~= nil then
+                            self.current_tab.elements_frame.Visible = false
+                        end
+                        
+                        if self.current_tab.button then
+                            if self.current_tab.button.BackgroundColor3 ~= nil then
+                                self.current_tab.button.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+                            end
+                            
+                            if self.current_tab.button.TextColor3 ~= nil then
+                                self.current_tab.button.TextColor3 = Color3.fromRGB(170, 170, 170)
+                            end
+                        end
                     end
                     
                     -- Активируем новую вкладку
-                    tab_cfg.elements_frame.Visible = true
-                    tab_cfg.button.BackgroundColor3 = themes.preset.accent
-                    tab_cfg.button.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    if tab_cfg.elements_frame then
+                        tab_cfg.elements_frame.Visible = true
+                    end
+                    
+                    if tab_cfg.button then
+                        tab_cfg.button.BackgroundColor3 = themes.preset.accent
+                        tab_cfg.button.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
                     
                     -- Обновляем текущую вкладку
                     self.current_tab = tab_cfg
-                    self.holder.Visible = false
-                    self.tab_content.Visible = true
+                    
+                    if self.holder then
+                        self.holder.Visible = false
+                    end
+                    
+                    if self.tab_content then
+                        self.tab_content.Visible = true
+                    end
                 end
                 
                 -- Обработка клика по кнопке вкладки
