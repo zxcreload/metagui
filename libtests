@@ -2648,10 +2648,7 @@ end
         function library:section(properties)
             local cfg = {
                 name = properties.name or properties.Name or "Section", 
-                side = properties.side or properties.Side or "left",
-                tabs = {},
-                current_tab = nil,
-                fill = properties.fill or properties.Fill or 0
+                side = properties.side or properties.Side or "left" 
             }
 
             -- Instances
@@ -2714,41 +2711,6 @@ end
                     BackgroundColor3 = Color3.fromRGB(255, 255, 255)
                 })
                 
-                -- Section tabs container
-                local section_tabs_container = library:create("Frame", {
-                    Parent = section,
-                    Name = "SectionTabsContainer",
-                    Position = UDim2.new(0, 12, 0, 12),
-                    BorderColor3 = Color3.fromRGB(0, 0, 0),
-                    Size = UDim2.new(1, -24, 0, 20), -- Высота для кнопок вкладок
-                    BorderSizePixel = 0,
-                    BackgroundTransparency = 1,
-                    Visible = false, -- Изначально скрыт, появится только если есть вкладки
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                })
-                
-                local tabs_layout = library:create("UIListLayout", {
-                    Parent = section_tabs_container,
-                    FillDirection = Enum.FillDirection.Horizontal,
-                    HorizontalAlignment = Enum.HorizontalAlignment.Left,
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                    Padding = UDim.new(0, 4)
-                })
-                
-                -- Tab content container
-                local section_tab_content = library:create("Frame", {
-                    Parent = section_frame,
-                    Name = "SectionTabContent",
-                    Position = UDim2.new(0, 12, 0, 40), -- Ниже контейнера вкладок
-                    BorderColor3 = Color3.fromRGB(0, 0, 0),
-                    Size = UDim2.new(1, -24, 0, 0),
-                    BorderSizePixel = 0,
-                    BackgroundTransparency = 1,
-                    Visible = false, -- Изначально скрыт
-                    AutomaticSize = Enum.AutomaticSize.Y,
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                })
-                
                 local UIListLayout = library:create("UIListLayout", {
                     Parent = elements,
                     Name = "",
@@ -2765,130 +2727,6 @@ end
             --        
 
             cfg["holder"] = elements
-            cfg["right_holder"] = elements
-            cfg["tab_container"] = section_tabs_container
-            cfg["tab_content"] = section_tab_content
-                
-            -- Добавляем метод для создания вкладки внутри секции
-            function cfg:insection_tab(properties)
-                -- Ensure tabs is initialized
-                self.tabs = self.tabs or {}
-                
-                local tab_cfg = {
-                    name = properties.name or "Tab",
-                    enabled = false,
-                    elements_frame = nil
-                }
-                
-                -- Создаем кнопку вкладки
-                local tab_button = library:create("TextButton", {
-                    Parent = self.tab_container,
-                    Name = tab_cfg.name,
-                    FontFace = library.font,
-                    TextColor3 = Color3.fromRGB(170, 170, 170),
-                    BorderColor3 = Color3.fromRGB(56, 56, 56),
-                    Text = tab_cfg.name,
-                    TextStrokeTransparency = 0.5,
-                    Size = UDim2.new(0, 80, 1, 0), -- Фиксированная ширина кнопки
-                    TextSize = 12,
-                    BackgroundColor3 = Color3.fromRGB(38, 38, 38)
-                })
-                
-                -- Создаем контейнер для элементов вкладки
-                local tab_elements = library:create("Frame", {
-                    Parent = self.tab_content or section,
-                    Name = tab_cfg.name .. "Content",
-                    BorderColor3 = Color3.fromRGB(0, 0, 0),
-                    Size = UDim2.new(1, 0, 0, 0),
-                    BorderSizePixel = 0,
-                    BackgroundTransparency = 1,
-                    Visible = false,
-                    AutomaticSize = Enum.AutomaticSize.Y,
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                })
-                
-                -- Добавляем layout для элементов вкладки
-                local tab_layout = library:create("UIListLayout", {
-                    Parent = tab_elements,
-                    Padding = UDim.new(0, 8),
-                    SortOrder = Enum.SortOrder.LayoutOrder
-                })
-                
-                tab_cfg.elements_frame = tab_elements
-                tab_cfg.button = tab_button
-                
-                -- Функция активации вкладки
-                function tab_cfg.activate()
-                    if not self.current_tab then
-                        self.current_tab = {
-                            elements_frame = {
-                                Visible = false
-                            },
-                            button = {
-                                BackgroundColor3 = Color3.fromRGB(38, 38, 38),
-                                TextColor3 = Color3.fromRGB(170, 170, 170)
-                            }
-                        }
-                    end
-
-                    -- Отключаем текущую активную вкладку
-                    if self.current_tab then
-                        if self.current_tab.elements_frame and self.current_tab.elements_frame.Visible ~= nil then
-                            self.current_tab.elements_frame.Visible = false
-                        end
-                        
-                        if self.current_tab.button then
-                            if self.current_tab.button.BackgroundColor3 ~= nil then
-                                self.current_tab.button.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
-                            end
-                            
-                            if self.current_tab.button.TextColor3 ~= nil then
-                                self.current_tab.button.TextColor3 = Color3.fromRGB(170, 170, 170)
-                            end
-                        end
-                    end
-                    
-                    -- Активируем новую вкладку
-                    if tab_cfg.elements_frame then
-                        tab_cfg.elements_frame.Visible = true
-                    end
-                    
-                    if tab_cfg.button then
-                        tab_cfg.button.BackgroundColor3 = themes.preset.accent
-                        tab_cfg.button.TextColor3 = Color3.fromRGB(255, 255, 255)
-                    end
-                    
-                    -- Обновляем текущую вкладку
-                    self.current_tab = tab_cfg
-                    
-                    if self.holder then
-                        self.holder.Visible = false
-                    end
-                    
-                    if self.tab_content then
-                        self.tab_content.Visible = true
-                    end
-                end
-                
-                -- Обработка клика по кнопке вкладки
-                tab_button.MouseButton1Click:Connect(function()
-                    tab_cfg.activate()
-                end)
-                
-                -- Добавляем вкладку в список
-                table.insert(self.tabs, tab_cfg)
-                
-                -- Делаем контейнер вкладок видимым
-                self.tab_container.Visible = true
-                
-                -- Если это первая вкладка, активируем её
-                if #self.tabs == 1 then
-                    tab_cfg.activate()
-                end
-                
-                -- Возвращаем конфигурацию вкладки с метаметодом, чтобы можно было использовать элементы UI
-                return setmetatable({holder = tab_elements, right_holder = tab_elements}, library)
-            end
 
             return setmetatable(cfg, library)
         end
@@ -3976,7 +3814,8 @@ end
                 animation = "normal",
                 saved_color,
                 right_holder = self.right_holder or nil,
-                holder = self.holder or nil
+                holder = self.holder or nil,
+                open = false
             }
 
             flags[cfg.flag] = {}
@@ -4481,7 +4320,8 @@ end
                         library.current_element_open.open = false 
                     end
 
-                    library.current_element_open = cfg  
+                    library.current_element_open = cfg
+                    cfg.icon_inline = icon_inline  -- Сохраняем ссылку на иконку для проверки в глобальном обработчике
                 end
 
                 picker_inline.Position = dim2(0, icon_inline.AbsolutePosition.X + 1, 0, icon_inline.AbsolutePosition.Y + 17)
@@ -4672,8 +4512,101 @@ end
                 end     
             end)    
             
-            return setmetatable(cfg, library)  
+                         return setmetatable(cfg, library)  
         end     
+
+        -- Обработчик для закрытия элементов интерфейса при клике вне их области
+        library:connection(uis.InputBegan, function(input, game_event)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and library.current_element_open then
+                local mouse_pos = uis:GetMouseLocation()
+                
+                -- Поиск открытых окон ColorPicker
+                local picker_inline, content_inline
+                
+                for _, frame in pairs(library.gui:GetDescendants()) do
+                    if frame.Name == "" and frame:IsA("Frame") and frame.Visible and 
+                        (frame.Size.X.Offset == 142 and frame.Size.Y.Offset == 146) then
+                        picker_inline = frame
+                    elseif frame.Name == "" and frame:IsA("Frame") and frame.Visible and 
+                        (frame.Size.X.Offset == 73) then
+                        content_inline = frame
+                    end
+                end
+                
+                if picker_inline and picker_inline.Visible then
+                    local picker_abs_pos = picker_inline.AbsolutePosition
+                    local picker_abs_size = picker_inline.AbsoluteSize
+                    
+                    -- Если клик вне ColorPicker меню
+                    if not (mouse_pos.X >= picker_abs_pos.X and 
+                            mouse_pos.X <= picker_abs_pos.X + picker_abs_size.X and 
+                            mouse_pos.Y >= picker_abs_pos.Y and 
+                            mouse_pos.Y <= picker_abs_pos.Y + picker_abs_size.Y) then
+                        
+                        -- Проверяем, что клик не был по иконке ColorPicker
+                        local is_icon_click = false
+                        
+                        -- Проверим все иконки colorpicker
+                        for _, icon in pairs(library.gui:GetDescendants()) do
+                            if icon:IsA("TextButton") and icon.Size.X.Offset == 16 and icon.Size.Y.Offset == 10 then
+                                local icon_abs_pos = icon.AbsolutePosition
+                                local icon_abs_size = icon.AbsoluteSize
+                                
+                                if mouse_pos.X >= icon_abs_pos.X and 
+                                   mouse_pos.X <= icon_abs_pos.X + icon_abs_size.X and 
+                                   mouse_pos.Y >= icon_abs_pos.Y and 
+                                   mouse_pos.Y <= icon_abs_pos.Y + icon_abs_size.Y then
+                                    is_icon_click = true
+                                    break
+                                end
+                            end
+                        end
+                        
+                        if not is_icon_click then
+                            library.current_element_open.set_visible(false)
+                            library.current_element_open.open = false
+                            library.current_element_open = nil
+                        end
+                    end
+                end
+                
+                -- Для меню типа ColorPicker (normal/rainbow)
+                if content_inline and content_inline.Visible then
+                    local content_abs_pos = content_inline.AbsolutePosition
+                    local content_abs_size = content_inline.AbsoluteSize
+                    
+                    -- Если клик вне меню выбора типа
+                    if not (mouse_pos.X >= content_abs_pos.X and 
+                            mouse_pos.X <= content_abs_pos.X + content_abs_size.X and 
+                            mouse_pos.Y >= content_abs_pos.Y and 
+                            mouse_pos.Y <= content_abs_pos.Y + content_abs_size.Y) then
+                        
+                        -- Проверяем, что клик не был по иконке ColorPicker
+                        local is_icon_click = false
+                        
+                        -- Проверим все иконки colorpicker
+                        for _, icon in pairs(library.gui:GetDescendants()) do
+                            if icon:IsA("TextButton") and icon.Size.X.Offset == 16 and icon.Size.Y.Offset == 10 then
+                                local icon_abs_pos = icon.AbsolutePosition
+                                local icon_abs_size = icon.AbsoluteSize
+                                
+                                if mouse_pos.X >= icon_abs_pos.X and 
+                                   mouse_pos.X <= icon_abs_pos.X + icon_abs_size.X and 
+                                   mouse_pos.Y >= icon_abs_pos.Y and 
+                                   mouse_pos.Y <= icon_abs_pos.Y + icon_abs_size.Y then
+                                    is_icon_click = true
+                                    break
+                                end
+                            end
+                        end
+                        
+                        if not is_icon_click then
+                            content_inline.Visible = false
+                        end
+                    end
+                end
+            end
+        end)
 
         function library:keybind(properties)
             local cfg = {
