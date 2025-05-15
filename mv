@@ -1810,3 +1810,320 @@ spawn(function()
         end
     end
 end)
+
+-- ===================== WORLD SECTION =====================
+local world_section = Visuals:section({name = "World", side = "right"})
+
+-- Сервисы
+local lighting = game:GetService("Lighting")
+
+-- Сохраняем оригинальные настройки
+local originalWorldSettings = {
+    FogColor = lighting.FogColor,
+    FogStart = lighting.FogStart,
+    FogEnd = lighting.FogEnd,
+    Ambient = lighting.Ambient,
+    Brightness = lighting.Brightness,
+    ClockTime = lighting.ClockTime,
+    ExposureCompensation = lighting.ExposureCompensation,
+    GlobalShadows = lighting.GlobalShadows,
+    OutdoorAmbient = lighting.OutdoorAmbient
+}
+
+-- Функции управления визуальными эффектами
+local function setFog(enabled)
+    if enabled then
+        -- Получаем настройки из flags
+        local fogColor = getColorFromFlag("world_fog_color", Color3.fromRGB(207, 227, 0))
+        local fogStart = flags["world_fog_start"] or 150
+        local fogEnd = flags["world_fog_end"] or 550
+        
+        lighting.FogColor = fogColor
+        lighting.FogStart = fogStart
+        lighting.FogEnd = fogEnd
+    else
+        lighting.FogColor = originalWorldSettings.FogColor
+        lighting.FogStart = originalWorldSettings.FogStart
+        lighting.FogEnd = originalWorldSettings.FogEnd
+    end
+end
+
+local function setAmbient(enabled)
+    if enabled then
+        -- Получаем настройки из flags
+        local ambientColor = getColorFromFlag("world_ambient_color", Color3.fromRGB(207, 227, 0))
+        lighting.Ambient = ambientColor
+    else
+        lighting.Ambient = originalWorldSettings.Ambient
+    end
+end
+
+local function setOutdoorAmbient(enabled)
+    if enabled then
+        -- Получаем настройки из flags
+        local outdoorAmbientColor = getColorFromFlag("world_outdoor_ambient_color", Color3.fromRGB(128, 128, 128))
+        lighting.OutdoorAmbient = outdoorAmbientColor
+    else
+        lighting.OutdoorAmbient = originalWorldSettings.OutdoorAmbient
+    end
+end
+
+local function setClockTime(enabled)
+    if enabled then
+        -- Получаем настройки из flags
+        local clockTime = flags["world_clock_time"] or 14
+        lighting.ClockTime = clockTime
+    else
+        lighting.ClockTime = originalWorldSettings.ClockTime
+    end
+end
+
+local function setBrightness(enabled)
+    if enabled then
+        -- Получаем настройки из flags
+        local brightness = flags["world_brightness"] or 1
+        lighting.Brightness = brightness
+    else
+        lighting.Brightness = originalWorldSettings.Brightness
+    end
+end
+
+local function setExposure(enabled)
+    if enabled then
+        -- Получаем настройки из flags
+        local exposure = flags["world_exposure"] or 0
+        lighting.ExposureCompensation = exposure
+    else
+        lighting.ExposureCompensation = originalWorldSettings.ExposureCompensation
+    end
+end
+
+local function setShadows(enabled)
+    if enabled ~= nil then
+        lighting.GlobalShadows = enabled
+    else
+        lighting.GlobalShadows = originalWorldSettings.GlobalShadows
+    end
+end
+
+local function resetAllWorldSettings()
+    -- Сбрасываем все настройки на оригинальные
+    lighting.FogColor = originalWorldSettings.FogColor
+    lighting.FogStart = originalWorldSettings.FogStart
+    lighting.FogEnd = originalWorldSettings.FogEnd
+    lighting.Ambient = originalWorldSettings.Ambient
+    lighting.OutdoorAmbient = originalWorldSettings.OutdoorAmbient
+    lighting.Brightness = originalWorldSettings.Brightness
+    lighting.ClockTime = originalWorldSettings.ClockTime
+    lighting.ExposureCompensation = originalWorldSettings.ExposureCompensation
+    lighting.GlobalShadows = originalWorldSettings.GlobalShadows
+    
+    -- Сбрасываем toggles
+    if flags["world_fog_enabled"] then world_fog_toggle:set(false) end
+    if flags["world_ambient_enabled"] then world_ambient_toggle:set(false) end
+    if flags["world_outdoor_ambient_enabled"] then world_outdoor_ambient_toggle:set(false) end
+    if flags["world_clock_time_enabled"] then world_clock_toggle:set(false) end
+    if flags["world_brightness_enabled"] then world_brightness_toggle:set(false) end
+    if flags["world_exposure_enabled"] then world_exposure_toggle:set(false) end
+    if flags["world_shadows_enabled"] then world_shadows_toggle:set(false) end
+end
+
+-- UI элементы для настройки эффектов мира
+-- Fog (Туман)
+local world_fog_toggle = world_section:toggle({
+    name = "Fog",
+    flag = "world_fog_enabled",
+    default = false,
+    tooltip = "Enable custom fog",
+    callback = function(bool)
+        setFog(bool)
+    end
+})
+
+world_section:colorpicker({
+    name = "Fog Color",
+    flag = "world_fog_color",
+    default = Color3.fromRGB(207, 227, 0),
+    callback = function(color)
+        if flags["world_fog_enabled"] then
+            lighting.FogColor = color
+        end
+    end
+})
+
+world_section:slider({
+    name = "Fog Start",
+    flag = "world_fog_start",
+    suffix = " studs",
+    default = 150,
+    min = 0,
+    max = 1000,
+    interval = 10,
+    tooltip = "Distance where fog starts",
+    callback = function(value)
+        if flags["world_fog_enabled"] then
+            lighting.FogStart = value
+        end
+    end
+})
+
+world_section:slider({
+    name = "Fog End",
+    flag = "world_fog_end",
+    suffix = " studs",
+    default = 550,
+    min = 0,
+    max = 5000,
+    interval = 50,
+    tooltip = "Distance where fog is fully opaque",
+    callback = function(value)
+        if flags["world_fog_enabled"] then
+            lighting.FogEnd = value
+        end
+    end
+})
+
+-- Ambient (Окружающий свет)
+local world_ambient_toggle = world_section:toggle({
+    name = "Ambient",
+    flag = "world_ambient_enabled",
+    default = false,
+    tooltip = "Enable custom ambient lighting",
+    callback = function(bool)
+        setAmbient(bool)
+    end
+})
+
+world_section:colorpicker({
+    name = "Ambient Color",
+    flag = "world_ambient_color",
+    default = Color3.fromRGB(207, 227, 0),
+    callback = function(color)
+        if flags["world_ambient_enabled"] then
+            lighting.Ambient = color
+        end
+    end
+})
+
+-- Outdoor Ambient (Наружный свет)
+local world_outdoor_ambient_toggle = world_section:toggle({
+    name = "Outdoor Ambient",
+    flag = "world_outdoor_ambient_enabled",
+    default = false,
+    tooltip = "Enable custom outdoor ambient lighting",
+    callback = function(bool)
+        setOutdoorAmbient(bool)
+    end
+})
+
+world_section:colorpicker({
+    name = "Outdoor Color",
+    flag = "world_outdoor_ambient_color",
+    default = Color3.fromRGB(128, 128, 128),
+    callback = function(color)
+        if flags["world_outdoor_ambient_enabled"] then
+            lighting.OutdoorAmbient = color
+        end
+    end
+})
+
+-- Time (Время суток)
+local world_clock_toggle = world_section:toggle({
+    name = "Time",
+    flag = "world_clock_time_enabled",
+    default = false,
+    tooltip = "Enable custom clock time",
+    callback = function(bool)
+        setClockTime(bool)
+    end
+})
+
+world_section:slider({
+    name = "Clock Time",
+    flag = "world_clock_time",
+    suffix = " hr",
+    default = 14,
+    min = 0,
+    max = 24,
+    interval = 0.5,
+    tooltip = "Set time of day (0-24)",
+    callback = function(value)
+        if flags["world_clock_time_enabled"] then
+            lighting.ClockTime = value
+        end
+    end
+})
+
+-- Brightness (Яркость)
+local world_brightness_toggle = world_section:toggle({
+    name = "Brightness",
+    flag = "world_brightness_enabled",
+    default = false,
+    tooltip = "Enable custom brightness",
+    callback = function(bool)
+        setBrightness(bool)
+    end
+})
+
+world_section:slider({
+    name = "Brightness Level",
+    flag = "world_brightness",
+    default = 1,
+    min = 0,
+    max = 10,
+    interval = 0.1,
+    tooltip = "Set brightness level",
+    callback = function(value)
+        if flags["world_brightness_enabled"] then
+            lighting.Brightness = value
+        end
+    end
+})
+
+-- Exposure (Экспозиция)
+local world_exposure_toggle = world_section:toggle({
+    name = "Exposure",
+    flag = "world_exposure_enabled",
+    default = false,
+    tooltip = "Enable custom exposure compensation",
+    callback = function(bool)
+        setExposure(bool)
+    end
+})
+
+world_section:slider({
+    name = "Exposure Level",
+    flag = "world_exposure",
+    default = 0,
+    min = -3,
+    max = 3,
+    interval = 0.1,
+    tooltip = "Set exposure compensation",
+    callback = function(value)
+        if flags["world_exposure_enabled"] then
+            lighting.ExposureCompensation = value
+        end
+    end
+})
+
+-- Shadows (Тени)
+local world_shadows_toggle = world_section:toggle({
+    name = "Shadows",
+    flag = "world_shadows_enabled",
+    default = true,
+    tooltip = "Enable global shadows",
+    callback = function(bool)
+        setShadows(bool)
+    end
+})
+
+-- Reset All Button
+world_section:button({
+    name = "Reset All",
+    tooltip = "Reset all world settings to default",
+    callback = function()
+        resetAllWorldSettings()
+    end
+})
+
+-- ===================== BULLET TRACERS & IMPACTS =====================
