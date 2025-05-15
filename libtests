@@ -4538,6 +4538,7 @@ end
                     end
                 end
                 
+                -- Для основного окна ColorPicker (палитра и hue)
                 if picker_inline and picker_inline.Visible then
                     local picker_abs_pos = picker_inline.AbsolutePosition
                     local picker_abs_size = picker_inline.AbsoluteSize
@@ -4548,30 +4549,24 @@ end
                             mouse_pos.Y >= picker_abs_pos.Y and 
                             mouse_pos.Y <= picker_abs_pos.Y + picker_abs_size.Y) then
                         
-                        -- Проверяем, что клик не был по иконке ColorPicker
-                        local is_icon_click = false
-                        
-                        -- Проверим все иконки colorpicker
-                        for _, icon in pairs(library.gui:GetDescendants()) do
-                            if icon:IsA("TextButton") and icon.Size.X.Offset == 16 and icon.Size.Y.Offset == 10 then
-                                local icon_abs_pos = icon.AbsolutePosition
-                                local icon_abs_size = icon.AbsoluteSize
-                                
-                                if mouse_pos.X >= icon_abs_pos.X and 
-                                   mouse_pos.X <= icon_abs_pos.X + icon_abs_size.X and 
-                                   mouse_pos.Y >= icon_abs_pos.Y and 
-                                   mouse_pos.Y <= icon_abs_pos.Y + icon_abs_size.Y then
-                                    is_icon_click = true
-                                    break
-                                end
+                        -- Проверяем, есть ли открытое меню типов (normal/rainbow)
+                        local content_abs_pos, content_abs_size
+                        if content_inline and content_inline.Visible then
+                            content_abs_pos = content_inline.AbsolutePosition
+                            content_abs_size = content_inline.AbsoluteSize
+                            
+                            -- Если клик находится внутри меню типов, не закрываем ColorPicker
+                            if mouse_pos.X >= content_abs_pos.X and 
+                               mouse_pos.X <= content_abs_pos.X + content_abs_size.X and 
+                               mouse_pos.Y >= content_abs_pos.Y and 
+                               mouse_pos.Y <= content_abs_pos.Y + content_abs_size.Y then
+                                return
                             end
                         end
                         
-                        if not is_icon_click then
-                            library.current_element_open.set_visible(false)
-                            library.current_element_open.open = false
-                            library.current_element_open = nil
-                        end
+                        library.current_element_open.set_visible(false)
+                        library.current_element_open.open = false
+                        library.current_element_open = nil
                     end
                 end
                 
@@ -4586,28 +4581,22 @@ end
                             mouse_pos.Y >= content_abs_pos.Y and 
                             mouse_pos.Y <= content_abs_pos.Y + content_abs_size.Y) then
                         
-                        -- Проверяем, что клик не был по иконке ColorPicker
-                        local is_icon_click = false
-                        
-                        -- Проверим все иконки colorpicker
-                        for _, icon in pairs(library.gui:GetDescendants()) do
-                            if icon:IsA("TextButton") and icon.Size.X.Offset == 16 and icon.Size.Y.Offset == 10 then
-                                local icon_abs_pos = icon.AbsolutePosition
-                                local icon_abs_size = icon.AbsoluteSize
-                                
-                                if mouse_pos.X >= icon_abs_pos.X and 
-                                   mouse_pos.X <= icon_abs_pos.X + icon_abs_size.X and 
-                                   mouse_pos.Y >= icon_abs_pos.Y and 
-                                   mouse_pos.Y <= icon_abs_pos.Y + icon_abs_size.Y then
-                                    is_icon_click = true
-                                    break
-                                end
+                        -- Проверяем, есть ли открытый ColorPicker
+                        local picker_abs_pos, picker_abs_size
+                        if picker_inline and picker_inline.Visible then
+                            picker_abs_pos = picker_inline.AbsolutePosition
+                            picker_abs_size = picker_inline.AbsoluteSize
+                            
+                            -- Если клик находится внутри ColorPicker, не закрываем меню типов
+                            if mouse_pos.X >= picker_abs_pos.X and 
+                               mouse_pos.X <= picker_abs_pos.X + picker_abs_size.X and 
+                               mouse_pos.Y >= picker_abs_pos.Y and 
+                               mouse_pos.Y <= picker_abs_pos.Y + picker_abs_size.Y then
+                                return
                             end
                         end
                         
-                        if not is_icon_click then
-                            content_inline.Visible = false
-                        end
+                        content_inline.Visible = false
                     end
                 end
             end
@@ -4842,7 +4831,7 @@ end
                 flags[cfg.flag]["mode"] = mode
             end 
 
-            function cfg.set(input)
+                            function cfg.set(input)
                 if type(input) == "boolean" then 
                     local __cached = input 
 
@@ -4922,7 +4911,12 @@ end
 
                 if cfg.keybind_name then 
                     key.change_text(keybind.Text ..  " " .. cfg.keybind_name .. " (" .. flags[cfg.flag].mode  .. ")")
-                    key.set_visible(cfg.active)
+                    -- Всегда показывать кейбинд меню, независимо от состояния active
+                    if cfg.keybind_name == "Menu" then
+                        key.set_visible(true)
+                    else
+                        key.set_visible(cfg.active)
+                    end
                 end 
             end
 
