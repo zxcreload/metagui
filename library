@@ -4443,34 +4443,31 @@ end
             flags[cfg.flag]["animation"] = "normal"
 
             rainbow.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
+                if selected ~= "normal" then 
+                    if type(selected) ~= "string" then
+                        selected.BackgroundTransparency = 1
+                    end
+                else
+                    normal.BackgroundTransparency = 1
+                end
                 selected = "rainbow" 
                 rainbow.BackgroundTransparency = 0 
 
                 flags[cfg.flag]["animation"] = "rainbow"
-                cfg.saved_color = hsv(s,s,v)
+                cfg.saved_color = hsv(h, s, v)
             end)
 
-            fade_alpha.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
-                selected = "fade_alpha" 
-                fade_alpha.BackgroundTransparency = 0 
-
-                flags[cfg.flag]["animation"] = "fade_alpha"
-                cfg.saved_color = hsv(s,s,v)
-            end)
-
-            fade.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
-                selected = "fade" 
-                fade.BackgroundTransparency = 0 
-
-                flags[cfg.flag]["animation"] = "fade"
-                cfg.saved_color = hsv(s,s,v)
-            end)
+            -- Скрываем неиспользуемые режимы
+            fade_alpha.Visible = false
+            fade.Visible = false
 
             normal.MouseButton1Down:Connect(function()
-                selected.BackgroundTransparency = 1; 
+                if selected ~= "normal" then
+                    if type(selected) ~= "string" then
+                        selected.BackgroundTransparency = 1
+                    end
+                    rainbow.BackgroundTransparency = 1
+                end
                 selected = "normal" 
                 normal.BackgroundTransparency = 0 
 
@@ -4500,15 +4497,14 @@ end
 
             task.spawn(function()
                 while true do 
-                    if selected ~= "normal" then 
-                        cfg.set(
-                            hsv(
-                                selected == "rainbow" and library.sin or h, 
-                                selected == "rainbow" and 1 or s, 
-                                selected == "fade" and library.sin or v
-                            )
-                            , selected == "fade_alpha" and library.sin
-                        )
+                    if selected == "rainbow" then 
+                        if not library.sin then library.sin = 0 end
+                        if flags["color_picker_anim_speed"] and tonumber(flags["color_picker_anim_speed"]) then
+                            library.sin = math.abs(math.sin(tick() * flags["color_picker_anim_speed"]))
+                        else
+                            library.sin = math.abs(math.sin(tick() * 2)) -- default speed if not set
+                        end
+                        cfg.set(hsv(library.sin, 1, 1))
                     end 
                     task.wait() 
                 end     
@@ -5219,4 +5215,3 @@ end
 -- 
 
 return library
-  
