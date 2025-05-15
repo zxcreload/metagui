@@ -2770,6 +2770,10 @@ end
                 
             -- Добавляем метод для создания вкладки внутри секции
             function cfg:insection_tab(properties)
+                if not self.tabs then
+                    self.tabs = {}
+                end
+                
                 local tab_cfg = {
                     name = properties.name or "Tab",
                     enabled = false,
