@@ -30,7 +30,17 @@ do
 end; 
 
 do -- Library
-	Library = {		Open = true;		Accent = Color3.fromRGB(132, 108, 188);		Pages = {};		Sections = {};		Flags = {};		UnNamedFlags = 0;		ThemeObjects = {};		Windows = {}; -- Создаем массив для хранения всех окон		Holder = nil;		Keys = {
+	Library = {
+		Open = true;
+		Accent = Color3.fromRGB(132, 108, 188);
+		Pages = {};
+		Sections = {};
+		Flags = {};
+		UnNamedFlags = 0;
+		ThemeObjects = {};
+		Windows = {}; -- Создаем массив для хранения всех окон
+		Holder = nil;
+		Keys = {
 			[Enum.KeyCode.LeftShift] = "LShift",
 			[Enum.KeyCode.RightShift] = "RShift",
 			[Enum.KeyCode.LeftControl] = "LCtrl",
@@ -73,7 +83,6 @@ do -- Library
 			[Enum.KeyCode.Slash] = "/",
 			[Enum.KeyCode.Asterisk] = "*",
 			[Enum.KeyCode.Plus] = "+",
-			[Enum.KeyCode.Period] = ".",
 			[Enum.KeyCode.Backquote] = "`",
 			[Enum.UserInputType.MouseButton1] = "MB1",
 			[Enum.UserInputType.MouseButton2] = "MB2",
@@ -87,7 +96,7 @@ do -- Library
 		UIFont = nil;
 		SettingsPage = nil;
 		VisValues = {};
-		Cooldown = false;
+		Cooldown = false;																					
 		Friends = {};
 		
 		Priorities = {};
@@ -4238,6 +4247,43 @@ function Library:ShowLoadingProgress(progress, maxProgress, title)
 end
 
 -- Функция для обновления масштаба UI
-function Library:SetUIScale(scale)    if typeof(scale) ~= "number" or scale <= 0 then        warn("UI scale must be a positive number!")        return    end        -- Сохраняем новый масштаб     self.UIScale = scale    self.FSize = math.floor(11 * scale) -- Обновляем базовый размер шрифта (база 11)        -- Обновляем масштаб всех текстовых элементов    for _, obj in pairs(self.ThemeObjects) do        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then            if obj.TextSize ~= nil then                obj.TextSize = math.floor(11 * scale)            end        end    end        -- Если есть ScreenGUI с UIScale, обновляем его    if self.Holder and self.Holder.Parent then        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")        if not uiScale then            uiScale = Instance.new("UIScale")            uiScale.Parent = self.Holder.Parent        end        uiScale.Scale = scale                -- Обновляем масштаб для всех созданных окон        for _, window in pairs(self.Windows or {}) do            if window.UIScale then                window.UIScale = scale            end        end    end        print(string.format("UI scale set to: %.2fx", scale))end
+function Library:SetUIScale(scale)
+    if typeof(scale) ~= "number" or scale <= 0 then
+        warn("UI scale must be a positive number!")
+        return
+    end
+    
+    -- Сохраняем новый масштаб 
+    self.UIScale = scale
+    self.FSize = math.floor(11 * scale) -- Обновляем базовый размер шрифта (база 11)
+    
+    -- Обновляем масштаб всех текстовых элементов
+    for _, obj in pairs(self.ThemeObjects) do
+        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
+            if obj.TextSize ~= nil then
+                obj.TextSize = math.floor(11 * scale)
+            end
+        end
+    end
+    
+    -- Если есть ScreenGUI с UIScale, обновляем его
+    if self.Holder and self.Holder.Parent then
+        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")
+        if not uiScale then
+            uiScale = Instance.new("UIScale")
+            uiScale.Parent = self.Holder.Parent
+        end
+        uiScale.Scale = scale
+        
+        -- Обновляем масштаб для всех созданных окон
+        for _, window in pairs(self.Windows or {}) do
+            if window.UIScale then
+                window.UIScale = scale
+            end
+        end
+    end
+    
+    print(string.format("UI scale set to: %.2fx", scale))
+end
 
 return Library;
