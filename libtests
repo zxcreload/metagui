@@ -29,11 +29,149 @@ do
 	getgenv().menu_font = Font.new(getcustomasset("menu_font.font"), Enum.FontWeight.Regular)
 end; 
 
+-- Loading Bar Implementation
+do
+    Library.LoadingBar = {
+        ScreenGui = nil,
+        BarFrame = nil,
+        ProgressBar = nil,
+        StatusText = nil,
+        Steps = 0,
+        CurrentStep = 0,
+        CallbacksOnComplete = {},
+    }
+    
+    function Library.LoadingBar:Initialize()
+        -- Create the loading bar UI
+        local ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Name = "LoadingBarGui"
+        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        ScreenGui.DisplayOrder = 9999
+        ScreenGui.Parent = Path
+        self.ScreenGui = ScreenGui
+        
+        local BarOutline = Instance.new("Frame")
+        BarOutline.Name = "BarOutline"
+        BarOutline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        BarOutline.BorderSizePixel = 0
+        BarOutline.Position = UDim2.new(0, 0, 0, 0)
+        BarOutline.Size = UDim2.new(1, 0, 0, 4)
+        BarOutline.Parent = ScreenGui
+        self.BarFrame = BarOutline
+        
+        local ProgressBar = Instance.new("Frame")
+        ProgressBar.Name = "ProgressBar"
+        ProgressBar.BackgroundColor3 = Library.Accent or Color3.fromRGB(132, 108, 188)
+        ProgressBar.BorderSizePixel = 0
+        ProgressBar.Size = UDim2.new(0, 0, 1, 0)
+        ProgressBar.Parent = BarOutline
+        self.ProgressBar = ProgressBar
+        
+        local UIGradient = Instance.new("UIGradient")
+        UIGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 180, 180))
+        })
+        UIGradient.Rotation = 90
+        UIGradient.Parent = ProgressBar
+        
+        local StatusText = Instance.new("TextLabel")
+        StatusText.Name = "StatusText"
+        StatusText.FontFace = menu_font
+        StatusText.Text = "Loading... 0%"
+        StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        StatusText.TextSize = 12
+        StatusText.TextStrokeTransparency = 0
+        StatusText.BackgroundTransparency = 1
+        StatusText.Position = UDim2.new(0, 5, 0, 9)
+        StatusText.Size = UDim2.new(0, 200, 0, 20)
+        StatusText.TextXAlignment = Enum.TextXAlignment.Left
+        StatusText.Parent = ScreenGui
+        self.StatusText = StatusText
+        
+        -- Add to theme objects
+        table.insert(Library.ThemeObjects, ProgressBar)
+        
+        return self
+    end
+    
+    function Library.LoadingBar:SetSteps(steps)
+        self.Steps = steps
+        self.CurrentStep = 0
+        return self
+    end
+    
+    function Library.LoadingBar:NextStep(text)
+        self.CurrentStep = math.min(self.CurrentStep + 1, self.Steps)
+        self:UpdateBar(text)
+        return self
+    end
+    
+    function Library.LoadingBar:UpdateBar(text)
+        local progress = self.CurrentStep / self.Steps
+        local percentage = math.floor(progress * 100)
+        
+        -- Update progress bar
+        game:GetService("TweenService"):Create(
+            self.ProgressBar, 
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+            {Size = UDim2.new(progress, 0, 1, 0)}
+        ):Play()
+        
+        -- Update status text
+        self.StatusText.Text = text and (text .. " " .. percentage .. "%") or ("Loading... " .. percentage .. "%")
+        
+        -- Call completion callbacks if finished
+        if self.CurrentStep >= self.Steps then
+            for _, callback in ipairs(self.CallbacksOnComplete) do
+                pcall(callback)
+            end
+        end
+        
+        return self
+    end
+    
+    function Library.LoadingBar:OnComplete(callback)
+        if type(callback) == "function" then
+            table.insert(self.CallbacksOnComplete, callback)
+        end
+        return self
+    end
+    
+    function Library.LoadingBar:Finish()
+        task.spawn(function()
+            task.wait(1)  -- Give time to show 100%
+            game:GetService("TweenService"):Create(
+                self.ScreenGui, 
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {BackgroundTransparency = 1}
+            ):Play()
+            
+            game:GetService("TweenService"):Create(
+                self.BarFrame, 
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {Position = UDim2.new(0, 0, -0.1, 0)}
+            ):Play()
+            
+            game:GetService("TweenService"):Create(
+                self.StatusText, 
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {TextTransparency = 1, TextStrokeTransparency = 1}
+            ):Play()
+            
+            task.wait(0.5)
+            self.ScreenGui:Destroy()
+        end)
+        return self
+    end
+end
+
 do -- Library
 	Library = {
 		Open = true;
 		Accent = Color3.fromRGB(132, 108, 188);
 		Pages = {};
+		
 		Sections = {};
 		Flags = {};
 		UnNamedFlags = 0;
@@ -99,7 +237,6 @@ do -- Library
 		Friends = {};
 		Priorities = {};
 		KeyList = nil;
-		ActiveConnections = {}; -- Добавляем таблицу для активных соединений
 	}
 
 	local Flags = {}; 
@@ -118,20 +255,11 @@ do -- Library
 	do
 		function Library:Connection(Signal, Callback)
 			local Con = Signal:Connect(Callback)
-			table.insert(self.ActiveConnections, Con) -- Добавляем соединение в таблицу
 			return Con
 		end
 		
 		function Library:Disconnect(Connection)
-			if Connection then
-				Connection:Disconnect()
-				for i, conn in ipairs(self.ActiveConnections) do
-					if conn == Connection then
-						table.remove(self.ActiveConnections, i)
-						break
-					end
-				end
-			end
+			Connection:Disconnect()
 		end
 		
 		function Library:Round(Number, Float)
@@ -1534,7 +1662,6 @@ do -- Library
 				}
 				local Key
 				local State = false
-				local c = nil -- Добавляем локальную переменную c
 				
 
 				local ModeBox = Instance.new("Frame")
@@ -1646,7 +1773,6 @@ do -- Library
 					if string.find(tostring(newkey), "Enum") then
 						if c then
 							c:Disconnect()
-							c = nil -- Явно устанавливаем c как nil после отключения
 							if Keybind.Flag then
 								Library.Flags[Keybind.Flag] = false
 							end
@@ -1758,7 +1884,6 @@ do -- Library
 							if inp.KeyCode == Key or inp.UserInputType == Key then
 								if c then
 									c:Disconnect()
-									c = nil -- Добавляем nil
 									if Keybind.Flag then
 										Library.Flags[Keybind.Flag] = false
 									end
@@ -2488,9 +2613,7 @@ do -- Library
 			function Dropdown:Refresh(tbl)
 				for _, opt in next, Dropdown.OptionInsts do
 					coroutine.wrap(function()
-						if opt and opt.button then
-							opt.button:Destroy() -- Заменяем Remove на Destroy
-						end
+						opt.button:Destroy()
 					end)()
 				end
 				table.clear(Dropdown.OptionInsts)
@@ -2695,7 +2818,6 @@ do -- Library
 			}
 			local Key
 			local State = false
-			local c = nil -- Добавляем локальную переменную c
 			
 
 			local ModeBox = Instance.new("Frame")
@@ -2839,7 +2961,6 @@ do -- Library
 				if string.find(tostring(newkey), "Enum") then
 					if c then
 						c:Disconnect()
-						c = nil -- Явно устанавливаем c как nil после отключения
 						if Keybind.Flag then
 							Library.Flags[Keybind.Flag] = false
 						end
@@ -2961,7 +3082,6 @@ do -- Library
 						if inp.KeyCode == Key or inp.UserInputType == Key then
 							if c then
 								c:Disconnect()
-								c = nil -- Добавляем nil
 								if Keybind.Flag then
 									Library.Flags[Keybind.Flag] = false
 								end
@@ -4066,4 +4186,5 @@ do
 	end
 end
 
-return Library;
+-- Возвращаем библиотеку для использования через loadstring
+return Library
