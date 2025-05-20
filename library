@@ -1182,11 +1182,33 @@ do -- Library
 			}
 
 			
+			-- Проверка и инициализация массива Pages, если он не существует
+			if not Page.Window.Pages then
+				Page.Window.Pages = {}
+			end
+			
 			if #Page.Window.Pages == 0 then
 				Page:Turn(true)
 			end
 			Page.Window.Pages[#Page.Window.Pages + 1] = Page
-			Page.Window:UpdateTabs()
+			
+			-- Проверка наличия функции UpdateTabs и её вызов
+			if Page.Window.UpdateTabs then
+				Page.Window:UpdateTabs()
+			else
+				-- Создаем функцию UpdateTabs, если она отсутствует
+				Page.Window.UpdateTabs = function(self)
+					for _, PageItem in pairs(self.Pages) do
+						if PageItem.Turn then
+							PageItem:Turn(PageItem.Open)
+						end
+					end
+				end
+				
+				-- Вызываем новую функцию
+				Page.Window:UpdateTabs()
+			end
+			
 			return setmetatable(Page, Library.Pages)
 		end
 		
@@ -1584,7 +1606,23 @@ do -- Library
 				local Hold = Instance.new("TextButton")
 				local Toggle = Instance.new("TextButton")
 				local Always = Instance.new("TextButton")
-				local ListValue = Library.KeyList:NewKey(Keybind.State, Keybind.Name, Keybind.Mode)
+				local ListValue
+				
+				-- Проверка существования KeyList и создание при необходимости
+				if not Library.KeyList then
+					-- Создаем базовую заглушку для KeyList
+					Library.KeyList = {
+						NewKey = function(self, Key, Name, Mode)
+							return {
+								SetVisible = function() end,
+								Update = function() end
+							}
+						end,
+						SetVisible = function() end
+					}
+				end
+				
+				ListValue = Library.KeyList:NewKey(Keybind.State, Keybind.Name, Keybind.Mode)
 				
 				local Icon = Instance.new("TextButton")
 				Icon.Name = "Icon"
@@ -2747,6 +2785,20 @@ do -- Library
 			local Always = Instance.new("TextButton")
 			local ListValue
 			if not Keybind.Ignore then
+				-- Проверка существования KeyList и создание при необходимости
+				if not Library.KeyList then
+					-- Создаем базовую заглушку для KeyList
+					Library.KeyList = {
+						NewKey = function(self, Key, Name, Mode)
+							return {
+								SetVisible = function() end,
+								Update = function() end
+							}
+						end,
+						SetVisible = function() end
+					}
+				end
+				
 				ListValue = Library.KeyList:NewKey(Keybind.State, Keybind.Name, Keybind.Mode)
 			end
 			
