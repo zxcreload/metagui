@@ -835,7 +835,7 @@ do -- Library
 				Holder = MainFrame,
 			}
 
-			-- Модифицируем логику перетаскивания с учетом масштабирования			Library:Connection(Window.Elements.Holder.MouseButton1Down, function()				local Location = game:GetService("UserInputService"):GetMouseLocation()				Window.Dragging[1] = true				-- Учитываем масштаб при расчете смещения				local scale = Window.UIScale or 1				Window.Dragging[2] = UDim2.new(0, Location.X - Window.Elements.Holder.Parent.AbsolutePosition.X, 0, Location.Y - Window.Elements.Holder.Parent.AbsolutePosition.Y)			end)						Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then					Window.Dragging[1] = false					Window.Dragging[2] = UDim2.new(0, 0, 0, 0)				end			end)						Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)				local Location = game:GetService("UserInputService"):GetMouseLocation()								-- Dragging с учётом масштаба				if Window.Dragging[1] then					ImageLabel.Position = UDim2.new(						0,						Location.X - Window.Dragging[2].X.Offset,						0,						Location.Y - Window.Dragging[2].Y.Offset					)				end			end)
+			-- Модифицируем логику перетаскивания с учетом масштабирования			Library:Connection(TopFrame.MouseButton1Down, function()				local Location = game:GetService("UserInputService"):GetMouseLocation()				Window.Dragging[1] = true				Window.Dragging[2] = UDim2.new(0, Location.X - ImageLabel.AbsolutePosition.X, 0, Location.Y - ImageLabel.AbsolutePosition.Y)			end)						Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then					Window.Dragging[1] = false				end			end)						Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)				if Input.UserInputType == Enum.UserInputType.MouseMovement and Window.Dragging[1] then					local Location = game:GetService("UserInputService"):GetMouseLocation()					ImageLabel.Position = UDim2.new(0, Location.X - Window.Dragging[2].X.Offset, 0, Location.Y - Window.Dragging[2].Y.Offset)				end			end)
 			Library:Connection(game:GetService("UserInputService").InputBegan, function(Input)
 				if Input.KeyCode == Library.UIKey then
 					Library:Toggle(not Library.Open)
@@ -4071,6 +4071,180 @@ function Library:ShowLoadingBar(progress, maxProgress, length, fill, empty)
     
     local bar = string.rep(fill, filledLength) .. string.rep(empty, length - filledLength)
     print(string.format("[%s] %d%%", bar, percentage))
+end
+
+-- Функция для создания и обновления визуального прогресс-бара
+function Library:CreateVisualLoadingBar(title)
+    -- Удаляем старый прогресс-бар, если он существует
+    if self.ProgressBarUI and self.ProgressBarUI.Parent then
+        self.ProgressBarUI:Destroy()
+    end
+    
+    -- Создаем новый прогресс-бар
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ProgressBarUI"
+    screenGui.DisplayOrder = 9999
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 300, 0, 50)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.2, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    mainFrame.BorderColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.BorderSizePixel = 1
+    mainFrame.Parent = screenGui
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.Text = title or "Загрузка..."
+    titleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    titleLabel.TextSize = 14
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, 0, 0, 20)
+    titleLabel.Position = UDim2.new(0, 0, 0, 5)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextStrokeTransparency = 0
+    titleLabel.Parent = mainFrame
+    
+    -- Акцентная линия
+    local accentLine = Instance.new("Frame")
+    accentLine.Name = "AccentLine"
+    accentLine.Size = UDim2.new(1, 0, 0, 1)
+    accentLine.Position = UDim2.new(0, 0, 0, 25)
+    accentLine.BackgroundColor3 = self.Accent or Color3.fromRGB(132, 108, 188)
+    accentLine.BorderSizePixel = 0
+    accentLine.Parent = mainFrame
+    
+    -- Фон прогресс-бара
+    local barBG = Instance.new("Frame")
+    barBG.Name = "BarBackground"
+    barBG.Size = UDim2.new(0.95, 0, 0, 10)
+    barBG.Position = UDim2.new(0.025, 0, 0, 30)
+    barBG.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    barBG.BorderColor3 = Color3.fromRGB(40, 40, 40)
+    barBG.BorderSizePixel = 1
+    barBG.Parent = mainFrame
+    
+    -- Заполнение прогресс-бара
+    local barFill = Instance.new("Frame")
+    barFill.Name = "BarFill"
+    barFill.Size = UDim2.new(0, 0, 1, 0)
+    barFill.BackgroundColor3 = self.Accent or Color3.fromRGB(132, 108, 188)
+    barFill.BorderSizePixel = 0
+    barFill.Parent = barBG
+    
+    -- Градиент для заполнения
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))
+    })
+    gradient.Rotation = 90
+    gradient.Parent = barFill
+    
+    -- Текст процента
+    local percentLabel = Instance.new("TextLabel")
+    percentLabel.Name = "PercentLabel"
+    percentLabel.Text = "0%"
+    percentLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    percentLabel.TextSize = 12
+    percentLabel.BackgroundTransparency = 1
+    percentLabel.Size = UDim2.new(1, 0, 0, 10)
+    percentLabel.Position = UDim2.new(0, 0, 0, 30)
+    percentLabel.Font = Enum.Font.GothamBold
+    percentLabel.TextStrokeTransparency = 0
+    percentLabel.Parent = mainFrame
+    
+    -- Добавление теней
+    local shadowHolder = Instance.new("Frame")
+    shadowHolder.Name = "ShadowHolder"
+    shadowHolder.BackgroundTransparency = 1
+    shadowHolder.Position = UDim2.new(-0.05, 0, -0.1, 0)
+    shadowHolder.Size = UDim2.new(1.1, 0, 1.2, 0)
+    shadowHolder.ZIndex = -1
+    
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.6
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.BackgroundTransparency = 1
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shadow.Size = UDim2.new(1, 10, 1, 10)
+    shadow.ZIndex = -1
+    shadow.Parent = shadowHolder
+    
+    shadowHolder.Parent = mainFrame
+    
+    screenGui.Parent = game:GetService("RunService"):IsStudio() and game.Players.LocalPlayer.PlayerGui or game.CoreGui
+    
+    self.ProgressBarUI = screenGui
+    self.ProgressBarFill = barFill
+    self.ProgressBarText = percentLabel
+    
+    -- Возвращаем объект прогресс-бара
+    return {
+        Update = function(progress, maxProgress)
+            local percentage = progress / maxProgress
+            local percentDisplay = math.floor(percentage * 100)
+            
+            -- Обновляем заполнение
+            barFill:TweenSize(
+                UDim2.new(percentage, 0, 1, 0),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.2,
+                true
+            )
+            
+            -- Обновляем текст
+            percentLabel.Text = percentDisplay .. "%"
+            
+            -- Если загрузка завершена
+            if percentDisplay >= 100 then
+                game:GetService("TweenService"):Create(
+                    mainFrame,
+                    TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {Position = UDim2.new(0.5, -150, -0.2, 0)}
+                ):Play()
+                
+                task.delay(0.6, function()
+                    screenGui:Destroy()
+                end)
+            end
+        end,
+        
+        Destroy = function()
+            if screenGui and screenGui.Parent then
+                screenGui:Destroy()
+            end
+        end
+    }
+end
+
+-- Обертка, чтобы показывать оба прогресс-бара одновременно
+function Library:ShowLoadingProgress(progress, maxProgress, title)
+    -- Показываем консольный прогресс-бар
+    self:ShowLoadingBar(progress, maxProgress)
+    
+    -- Если визуальный прогресс-бар еще не создан, создаем его
+    if not self.VisualLoadingBar then
+        self.VisualLoadingBar = self:CreateVisualLoadingBar(title)
+    end
+    
+    -- Обновляем визуальный прогресс-бар
+    self.VisualLoadingBar.Update(progress, maxProgress)
+    
+    -- Если загрузка завершена, удаляем ссылку на прогресс-бар
+    if progress >= maxProgress then
+        task.delay(0.7, function()
+            self.VisualLoadingBar = nil
+        end)
+    end
 end
 
 -- Функция для обновления масштаба UI
