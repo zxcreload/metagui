@@ -91,13 +91,14 @@ do -- Library
 		Connections = {};
 		UIKey = Enum.KeyCode.End;
 		ScreenGUI = nil;
-		FSize = 10;
+		FSize = 11; -- Увеличиваем базовый размер шрифта с 10 до 11
 		UIScale = 1.0;
 		UIFont = nil;
 		SettingsPage = nil;
 		VisValues = {};
 		Cooldown = false;
 		Friends = {};
+		
 		Priorities = {};
 		KeyList = nil;
 		ActiveConnections = {}; -- Добавляем таблицу для активных соединений
@@ -834,34 +835,7 @@ do -- Library
 				Holder = MainFrame,
 			}
 
-			-- Модифицируем логику перетаскивания с учетом масштабирования
-			Library:Connection(Window.Elements.Holder.MouseButton1Down, function()
-				local Location = game:GetService("UserInputService"):GetMouseLocation()
-				Window.Dragging[1] = true
-				Window.Dragging[2] = UDim2.new(0, Location.X - Window.Elements.Holder.Parent.AbsolutePosition.X, 0, Location.Y - Window.Elements.Holder.Parent.AbsolutePosition.Y)
-			end)
-			
-			Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then
-					Window.Dragging[1] = false
-					Window.Dragging[2] = UDim2.new(0, 0, 0, 0)
-				end
-			end)
-			
-			Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)
-				local Location = game:GetService("UserInputService"):GetMouseLocation()
-				local ActualLocation = nil
-
-				-- Dragging
-				if Window.Dragging[1] then
-					ImageLabel.Position = UDim2.new(
-						0,
-						Location.X - Window.Dragging[2].X.Offset + (ImageLabel.Size.X.Offset * ImageLabel.AnchorPoint.X),
-						0,
-						Location.Y - Window.Dragging[2].Y.Offset + (ImageLabel.Size.Y.Offset * ImageLabel.AnchorPoint.Y)
-					)
-				end
-			end)
+			-- Модифицируем логику перетаскивания с учетом масштабирования			Library:Connection(Window.Elements.Holder.MouseButton1Down, function()				local Location = game:GetService("UserInputService"):GetMouseLocation()				Window.Dragging[1] = true				-- Учитываем масштаб при расчете смещения				local scale = Window.UIScale or 1				Window.Dragging[2] = UDim2.new(0, Location.X - Window.Elements.Holder.Parent.AbsolutePosition.X, 0, Location.Y - Window.Elements.Holder.Parent.AbsolutePosition.Y)			end)						Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then					Window.Dragging[1] = false					Window.Dragging[2] = UDim2.new(0, 0, 0, 0)				end			end)						Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)				local Location = game:GetService("UserInputService"):GetMouseLocation()								-- Dragging с учётом масштаба				if Window.Dragging[1] then					ImageLabel.Position = UDim2.new(						0,						Location.X - Window.Dragging[2].X.Offset,						0,						Location.Y - Window.Dragging[2].Y.Offset					)				end			end)
 			Library:Connection(game:GetService("UserInputService").InputBegan, function(Input)
 				if Input.KeyCode == Library.UIKey then
 					Library:Toggle(not Library.Open)
@@ -4099,36 +4073,6 @@ function Library:ShowLoadingBar(progress, maxProgress, length, fill, empty)
     print(string.format("[%s] %d%%", bar, percentage))
 end
 
--- Функция для обновления масштаба UI
-function Library:SetUIScale(scale)
-    if typeof(scale) ~= "number" or scale <= 0 then
-        warn("UI scale must be a positive number!")
-        return
-    end
-    
-    self.UIScale = scale
-    self.FSize = math.floor(10 * scale) -- Обновляем базовый размер шрифта
-    
-    -- Обновляем масштаб всех текстовых элементов
-    for _, obj in pairs(self.ThemeObjects) do
-        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
-            if obj.TextSize ~= nil then
-                obj.TextSize = math.floor(10 * scale)
-            end
-        end
-    end
-    
-    -- Если есть ScreenGUI с UIScale, обновляем его
-    if self.Holder and self.Holder.Parent then
-        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")
-        if not uiScale then
-            uiScale = Instance.new("UIScale")
-            uiScale.Parent = self.Holder.Parent
-        end
-        uiScale.Scale = scale
-    end
-    
-    print(string.format("UI scale set to: %.1fx", scale))
-end
+-- Функция для обновления масштаба UIfunction Library:SetUIScale(scale)    if typeof(scale) ~= "number" or scale <= 0 then        warn("UI scale must be a positive number!")        return    end        self.UIScale = scale    self.FSize = math.floor(11 * scale) -- Обновляем базовый размер шрифта (база 11)        -- Обновляем масштаб всех текстовых элементов    for _, obj in pairs(self.ThemeObjects) do        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then            if obj.TextSize ~= nil then                obj.TextSize = math.floor(11 * scale)            end        end    end        -- Если есть ScreenGUI с UIScale, обновляем его    if self.Holder and self.Holder.Parent then        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")        if not uiScale then            uiScale = Instance.new("UIScale")            uiScale.Parent = self.Holder.Parent        end        uiScale.Scale = scale    end        print(string.format("UI scale set to: %.2fx", scale))end
 
 return Library;
