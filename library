@@ -1030,6 +1030,41 @@ do -- Library
 			NewTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			NewTab.BorderSizePixel = 0
 			NewTab.Size = UDim2.new(1, 0, 0, 70)
+			
+			-- Проверка существования TabHolder и его создание при необходимости
+			if not Page.Window.Elements then
+				Page.Window.Elements = {}
+			end
+			
+			if not Page.Window.Holder and Page.Window.Main then
+				Page.Window.Holder = Page.Window.Main
+			end
+			
+			-- Если нет доступа к Main, используем Holder или создаем новый фрейм
+			if not Page.Window.Main then
+				if Page.Window.Holder then
+					Page.Window.Main = Page.Window.Holder
+				else
+					Page.Window.Main = Instance.new("Frame")
+					Page.Window.Main.Name = "MainHolder"
+					Page.Window.Main.BackgroundTransparency = 1
+					Page.Window.Main.Size = UDim2.new(1, 0, 1, 0)
+					
+					-- Добавляем Main в родительский элемент, если он есть
+					if Library.Holder then
+						Page.Window.Main.Parent = Library.Holder
+					end
+				end
+			end
+			
+			if not Page.Window.Elements.TabHolder then
+				Page.Window.Elements.TabHolder = Instance.new("Frame")
+				Page.Window.Elements.TabHolder.Name = "TabHolder"
+				Page.Window.Elements.TabHolder.BackgroundTransparency = 1
+				Page.Window.Elements.TabHolder.Size = UDim2.new(1, 0, 1, 0)
+				Page.Window.Elements.TabHolder.Parent = Page.Window.Main
+			end
+			
 			NewTab.Parent = Page.Window.Elements.TabHolder
 
 			local AccentLine = Library:NewInstance("Frame", true)
@@ -1080,6 +1115,12 @@ do -- Library
 			NewPage.Position = UDim2.new(0, 91, 0, 35)
 			NewPage.Size = UDim2.new(1, -100, 1, -40)
 			NewPage.Visible = false
+			
+			-- Проверка и инициализация Holder, если не существует
+			if not Page.Window.Elements.Holder then
+				Page.Window.Elements.Holder = Page.Window.Main or Page.Window.Holder
+			end
+			
 			NewPage.Parent = Page.Window.Elements.Holder
 
 			local Left = Instance.new("Frame")
