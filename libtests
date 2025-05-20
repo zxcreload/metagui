@@ -7,6 +7,84 @@ repeat wait() until game:IsLoaded();
 
 local Tick = tick()
 
+-- Loading Bar
+do
+    local LoadingBarScreen = Instance.new("ScreenGui")
+    LoadingBarScreen.Name = "LoadingBar"
+    LoadingBarScreen.DisplayOrder = 9999
+    LoadingBarScreen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    LoadingBarScreen.Parent = Path
+    
+    local Background = Instance.new("Frame")
+    Background.Name = "Background"
+    Background.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    Background.BorderSizePixel = 0
+    Background.Size = UDim2.new(1, 0, 0, 5)
+    Background.Position = UDim2.new(0, 0, 0, 0)
+    Background.Parent = LoadingBarScreen
+    
+    local Bar = Instance.new("Frame")
+    Bar.Name = "Bar"
+    Bar.BackgroundColor3 = Color3.fromRGB(132, 108, 188)
+    Bar.BorderSizePixel = 0
+    Bar.Size = UDim2.new(0, 0, 1, 0)
+    Bar.Parent = Background
+    
+    local PercentText = Instance.new("TextLabel")
+    PercentText.Name = "PercentText"
+    PercentText.BackgroundTransparency = 1
+    PercentText.TextStrokeTransparency = 0.6
+    PercentText.Size = UDim2.new(0, 100, 0, 20)
+    PercentText.Position = UDim2.new(0.5, -50, 0, 10)
+    PercentText.Font = Enum.Font.GothamBold
+    PercentText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    PercentText.TextSize = 14
+    PercentText.Text = "0%"
+    PercentText.Parent = LoadingBarScreen
+    
+    Library.LoadingBar = {
+        ScreenGui = LoadingBarScreen,
+        Background = Background,
+        Bar = Bar,
+        PercentText = PercentText,
+        Tasks = {},
+        TotalTasks = 0,
+        CompletedTasks = 0,
+        
+        AddTask = function(self, name)
+            self.Tasks[name] = false
+            self.TotalTasks = self.TotalTasks + 1
+            self:UpdateBar()
+            return function()
+                self.Tasks[name] = true
+                self.CompletedTasks = self.CompletedTasks + 1
+                self:UpdateBar()
+            end
+        end,
+        
+        UpdateBar = function(self)
+            local percentage = self.TotalTasks > 0 and (self.CompletedTasks / self.TotalTasks) or 0
+            Bar.Size = UDim2.new(percentage, 0, 1, 0)
+            PercentText.Text = math.floor(percentage * 100) .. "%"
+            
+            if percentage >= 1 then
+                task.delay(1, function()
+                    game:GetService("TweenService"):Create(LoadingBarScreen, TweenInfo.new(0.5), {
+                        GroupTransparency = 1
+                    }):Play()
+                    task.delay(0.5, function()
+                        LoadingBarScreen:Destroy()
+                    end)
+                end)
+            end
+        end,
+        
+        SetAccent = function(self, color)
+            Bar.BackgroundColor3 = color
+        end
+    }
+end
+
 -- Custom Fonts
 do 
 	-- 
@@ -29,149 +107,11 @@ do
 	getgenv().menu_font = Font.new(getcustomasset("menu_font.font"), Enum.FontWeight.Regular)
 end; 
 
--- Loading Bar Implementation
-do
-    Library.LoadingBar = {
-        ScreenGui = nil,
-        BarFrame = nil,
-        ProgressBar = nil,
-        StatusText = nil,
-        Steps = 0,
-        CurrentStep = 0,
-        CallbacksOnComplete = {},
-    }
-    
-    function Library.LoadingBar:Initialize()
-        -- Create the loading bar UI
-        local ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "LoadingBarGui"
-        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        ScreenGui.DisplayOrder = 9999
-        ScreenGui.Parent = Path
-        self.ScreenGui = ScreenGui
-        
-        local BarOutline = Instance.new("Frame")
-        BarOutline.Name = "BarOutline"
-        BarOutline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        BarOutline.BorderSizePixel = 0
-        BarOutline.Position = UDim2.new(0, 0, 0, 0)
-        BarOutline.Size = UDim2.new(1, 0, 0, 4)
-        BarOutline.Parent = ScreenGui
-        self.BarFrame = BarOutline
-        
-        local ProgressBar = Instance.new("Frame")
-        ProgressBar.Name = "ProgressBar"
-        ProgressBar.BackgroundColor3 = Library.Accent or Color3.fromRGB(132, 108, 188)
-        ProgressBar.BorderSizePixel = 0
-        ProgressBar.Size = UDim2.new(0, 0, 1, 0)
-        ProgressBar.Parent = BarOutline
-        self.ProgressBar = ProgressBar
-        
-        local UIGradient = Instance.new("UIGradient")
-        UIGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 180, 180))
-        })
-        UIGradient.Rotation = 90
-        UIGradient.Parent = ProgressBar
-        
-        local StatusText = Instance.new("TextLabel")
-        StatusText.Name = "StatusText"
-        StatusText.FontFace = menu_font
-        StatusText.Text = "Loading... 0%"
-        StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        StatusText.TextSize = 12
-        StatusText.TextStrokeTransparency = 0
-        StatusText.BackgroundTransparency = 1
-        StatusText.Position = UDim2.new(0, 5, 0, 9)
-        StatusText.Size = UDim2.new(0, 200, 0, 20)
-        StatusText.TextXAlignment = Enum.TextXAlignment.Left
-        StatusText.Parent = ScreenGui
-        self.StatusText = StatusText
-        
-        -- Add to theme objects
-        table.insert(Library.ThemeObjects, ProgressBar)
-        
-        return self
-    end
-    
-    function Library.LoadingBar:SetSteps(steps)
-        self.Steps = steps
-        self.CurrentStep = 0
-        return self
-    end
-    
-    function Library.LoadingBar:NextStep(text)
-        self.CurrentStep = math.min(self.CurrentStep + 1, self.Steps)
-        self:UpdateBar(text)
-        return self
-    end
-    
-    function Library.LoadingBar:UpdateBar(text)
-        local progress = self.CurrentStep / self.Steps
-        local percentage = math.floor(progress * 100)
-        
-        -- Update progress bar
-        game:GetService("TweenService"):Create(
-            self.ProgressBar, 
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-            {Size = UDim2.new(progress, 0, 1, 0)}
-        ):Play()
-        
-        -- Update status text
-        self.StatusText.Text = text and (text .. " " .. percentage .. "%") or ("Loading... " .. percentage .. "%")
-        
-        -- Call completion callbacks if finished
-        if self.CurrentStep >= self.Steps then
-            for _, callback in ipairs(self.CallbacksOnComplete) do
-                pcall(callback)
-            end
-        end
-        
-        return self
-    end
-    
-    function Library.LoadingBar:OnComplete(callback)
-        if type(callback) == "function" then
-            table.insert(self.CallbacksOnComplete, callback)
-        end
-        return self
-    end
-    
-    function Library.LoadingBar:Finish()
-        task.spawn(function()
-            task.wait(1)  -- Give time to show 100%
-            game:GetService("TweenService"):Create(
-                self.ScreenGui, 
-                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-                {BackgroundTransparency = 1}
-            ):Play()
-            
-            game:GetService("TweenService"):Create(
-                self.BarFrame, 
-                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-                {Position = UDim2.new(0, 0, -0.1, 0)}
-            ):Play()
-            
-            game:GetService("TweenService"):Create(
-                self.StatusText, 
-                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
-                {TextTransparency = 1, TextStrokeTransparency = 1}
-            ):Play()
-            
-            task.wait(0.5)
-            self.ScreenGui:Destroy()
-        end)
-        return self
-    end
-end
-
 do -- Library
 	Library = {
 		Open = true;
 		Accent = Color3.fromRGB(132, 108, 188);
 		Pages = {};
-		
 		Sections = {};
 		Flags = {};
 		UnNamedFlags = 0;
@@ -407,9 +347,16 @@ do -- Library
 					theme.TextColor3 = Color
 				elseif theme:IsA("ImageLabel") or theme:IsA("ImageButton") then
 					theme.ImageColor3 = Color
+				elseif theme:IsA("UIStroke") then
+					theme.Color = Color
 				elseif theme:IsA("ScrollingFrame") then
-					theme.ScrollBarImageColor3 = Library.Accent
+					theme.ScrollBarImageColor3 = Color
 				end
+			end
+			
+			-- Update LoadingBar color if it exists
+			if Library.LoadingBar then
+				Library.LoadingBar:SetAccent(Color)
 			end
 		end
 		
@@ -4185,6 +4132,3 @@ do
 		return notification
 	end
 end
-
--- Возвращаем библиотеку для использования через loadstring
-return Library
