@@ -38,7 +38,6 @@ do -- Library
 		Flags = {};
 		UnNamedFlags = 0;
 		ThemeObjects = {};
-		Windows = {}; -- Создаем массив для хранения всех окон
 		Holder = nil;
 		Keys = {
 			[Enum.KeyCode.LeftShift] = "LShift",
@@ -83,6 +82,7 @@ do -- Library
 			[Enum.KeyCode.Slash] = "/",
 			[Enum.KeyCode.Asterisk] = "*",
 			[Enum.KeyCode.Plus] = "+",
+			[Enum.KeyCode.Period] = ".",
 			[Enum.KeyCode.Backquote] = "`",
 			[Enum.UserInputType.MouseButton1] = "MB1",
 			[Enum.UserInputType.MouseButton2] = "MB2",
@@ -91,17 +91,14 @@ do -- Library
 		Connections = {};
 		UIKey = Enum.KeyCode.End;
 		ScreenGUI = nil;
-		FSize = 11; -- Увеличиваем базовый размер шрифта с 10 до 11
-		UIScale = 1.0;
+		FSize = 10;
 		UIFont = nil;
 		SettingsPage = nil;
 		VisValues = {};
-		Cooldown = false;																					
+		Cooldown = false;
 		Friends = {};
-		
 		Priorities = {};
 		KeyList = nil;
-		ActiveConnections = {}; -- Добавляем таблицу для активных соединений
 	}
 
 	local Flags = {}; 
@@ -120,20 +117,11 @@ do -- Library
 	do
 		function Library:Connection(Signal, Callback)
 			local Con = Signal:Connect(Callback)
-			table.insert(self.ActiveConnections, Con) -- Добавляем соединение в таблицу
 			return Con
 		end
 		
 		function Library:Disconnect(Connection)
-			if Connection then
-				Connection:Disconnect()
-				for i, conn in ipairs(self.ActiveConnections) do
-					if conn == Connection then
-						table.remove(self.ActiveConnections, i)
-						break
-					end
-				end
-			end
+			Connection:Disconnect()
 		end
 		
 		function Library:Round(Number, Float)
@@ -263,18 +251,12 @@ do -- Library
 		
 		function Library:IsMouseOverFrame(Frame)
 			local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
-			local scale = self.UIScale or 1
-			
-			-- Получаем позицию мыши
-			local mousePos = game:GetService("UserInputService"):GetMouseLocation()
-			
-			-- Проверяем находится ли мышь над фреймом с учетом масштабирования
-			if mousePos.X >= AbsPos.X and mousePos.X <= AbsPos.X + AbsSize.X 
-				and mousePos.Y >= AbsPos.Y and mousePos.Y <= AbsPos.Y + AbsSize.Y then
+
+			if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
+				and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+
 				return true;
 			end;
-			
-			return false;
 		end;
 		
 		function Library:ChangeAccent(Color)
@@ -643,23 +625,20 @@ do -- Library
 
 	function Library:Resize(object, background)
 		local start, objectposition, dragging, currentpos, currentsize
-		local scale = self.UIScale or 1
 
 		Library:Connection(object.MouseButton1Down, function(input)
 			dragging = true
 			start = input
 		end)
-		
-		Library:Connection(game:GetService("UserInputService").InputChanged, function(input)
-			if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+		Library:Connection(Mouse.Move, function(input)
+			if dragging then
 				local MouseLocation = game:GetService("UserInputService"):GetMouseLocation()
 				local X = math.clamp(MouseLocation.X - background.AbsolutePosition.X, 550, 9999)
 				local Y = math.clamp((MouseLocation.Y - 36) - background.AbsolutePosition.Y, 600, 9999)
-				currentsize = UDim2.new(0, X, 0, Y)
+				currentsize = UDim2.new(0,X,0,Y)
 				background.Size = currentsize
 			end;
 		end)
-		
 		Library:Connection(game:GetService("UserInputService").InputEnded, function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				dragging = false
@@ -672,26 +651,18 @@ do -- Library
 		local Sections = Library.Sections;
 		
 		function Library:Window(Options)
-			Options = Options or {}
-			
 			local Window = {
 				Pages = {};
 				Sections = {};
 				Elements = {};
 				Dragging = { false, UDim2.new(0, 0, 0, 0) };
-				UIScale = Options.Scale or self.UIScale or 1.0;
 			};
 			
 			local FentFun = Instance.new("ScreenGui", Path)
 			FentFun.Name = "fent.fun"
 			FentFun.DisplayOrder = 1000
 			FentFun.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-			
-			-- Добавляем UIScale для всего GUI
-			local uiScale = Instance.new("UIScale")
-			uiScale.Scale = Window.UIScale
-			uiScale.Parent = FentFun
-			
+
 			local ImageLabel = Instance.new("ImageLabel")
 			ImageLabel.Name = "ImageLabel"
 			ImageLabel.Image = "rbxassetid://297774371"
@@ -835,7 +806,32 @@ do -- Library
 				Holder = MainFrame,
 			}
 
-			-- Модифицируем логику перетаскивания с учетом масштабирования			Library:Connection(TopFrame.MouseButton1Down, function()				local Location = game:GetService("UserInputService"):GetMouseLocation()				Window.Dragging[1] = true				Window.Dragging[2] = UDim2.new(0, Location.X - ImageLabel.AbsolutePosition.X, 0, Location.Y - ImageLabel.AbsolutePosition.Y)			end)						Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then					Window.Dragging[1] = false				end			end)						Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)				if Input.UserInputType == Enum.UserInputType.MouseMovement and Window.Dragging[1] then					local Location = game:GetService("UserInputService"):GetMouseLocation()					-- Учитываем масштаб при перетаскивании					local scale = Window.UIScale or 1.0					ImageLabel.Position = UDim2.new(0, Location.X - Window.Dragging[2].X.Offset, 0, Location.Y - Window.Dragging[2].Y.Offset)				end			end)
+			Library:Connection(MainFrame.MouseButton1Down, function()
+				local Location = game:GetService("UserInputService"):GetMouseLocation()
+				Window.Dragging[1] = true
+				Window.Dragging[2] = UDim2.new(0, Location.X - ImageLabel.AbsolutePosition.X, 0, Location.Y - ImageLabel.AbsolutePosition.Y)
+			end)
+			Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then
+					local Location = game:GetService("UserInputService"):GetMouseLocation()
+					Window.Dragging[1] = false
+					Window.Dragging[2] = UDim2.new(0, 0, 0, 0)
+				end
+			end)
+			Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)
+				local Location = game:GetService("UserInputService"):GetMouseLocation()
+				local ActualLocation = nil
+
+				-- Dragging
+				if Window.Dragging[1] then
+					ImageLabel.Position = UDim2.new(
+						0,
+						Location.X - Window.Dragging[2].X.Offset + (ImageLabel.Size.X.Offset * ImageLabel.AnchorPoint.X),
+						0,
+						Location.Y - Window.Dragging[2].Y.Offset + (ImageLabel.Size.Y.Offset * ImageLabel.AnchorPoint.Y)
+					)
+				end
+			end)
 			Library:Connection(game:GetService("UserInputService").InputBegan, function(Input)
 				if Input.KeyCode == Library.UIKey then
 					Library:Toggle(not Library.Open)
@@ -985,30 +981,13 @@ do -- Library
 			Window:KeyList()
 
 			
-					function Window:UpdateTabs()
-				-- Просто проверим, что Pages существует
-				if not Window.Pages then
-					Window.Pages = {}
-					return
+			function Window:UpdateTabs()
+				for Index, Page in pairs(Window.Pages) do
+					Page:Turn(Page.Open)
 				end
-				
-				-- Перебираем страницы и обновляем их состояние
-				for _, Page in pairs(Window.Pages) do
-					pcall(function()
-						Page:Turn(Page.Open)
-					end)
-				end
-			end
-
-			-- Добавляем метод Page к объекту Window
-			function Window:Page(Properties)
-				return Library:Page(Properties)
 			end
 
 			Library.Holder = ImageLabel
-			-- Добавляем окно в таблицу Windows для отслеживания
-			table.insert(Library.Windows, Window)
-			
 			return setmetatable(Window, Library)
 		end;
 		
@@ -1039,41 +1018,6 @@ do -- Library
 			NewTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			NewTab.BorderSizePixel = 0
 			NewTab.Size = UDim2.new(1, 0, 0, 70)
-			
-			-- Проверка существования TabHolder и его создание при необходимости
-			if not Page.Window.Elements then
-				Page.Window.Elements = {}
-			end
-			
-			if not Page.Window.Holder and Page.Window.Main then
-				Page.Window.Holder = Page.Window.Main
-			end
-			
-			-- Если нет доступа к Main, используем Holder или создаем новый фрейм
-			if not Page.Window.Main then
-				if Page.Window.Holder then
-					Page.Window.Main = Page.Window.Holder
-				else
-					Page.Window.Main = Instance.new("Frame")
-					Page.Window.Main.Name = "MainHolder"
-					Page.Window.Main.BackgroundTransparency = 1
-					Page.Window.Main.Size = UDim2.new(1, 0, 1, 0)
-					
-					-- Добавляем Main в родительский элемент, если он есть
-					if Library.Holder then
-						Page.Window.Main.Parent = Library.Holder
-					end
-				end
-			end
-			
-			if not Page.Window.Elements.TabHolder then
-				Page.Window.Elements.TabHolder = Instance.new("Frame")
-				Page.Window.Elements.TabHolder.Name = "TabHolder"
-				Page.Window.Elements.TabHolder.BackgroundTransparency = 1
-				Page.Window.Elements.TabHolder.Size = UDim2.new(1, 0, 1, 0)
-				Page.Window.Elements.TabHolder.Parent = Page.Window.Main
-			end
-			
 			NewTab.Parent = Page.Window.Elements.TabHolder
 
 			local AccentLine = Library:NewInstance("Frame", true)
@@ -1124,12 +1068,6 @@ do -- Library
 			NewPage.Position = UDim2.new(0, 91, 0, 35)
 			NewPage.Size = UDim2.new(1, -100, 1, -40)
 			NewPage.Visible = false
-			
-			-- Проверка и инициализация Holder, если не существует
-			if not Page.Window.Elements.Holder then
-				Page.Window.Elements.Holder = Page.Window.Main or Page.Window.Holder
-			end
-			
 			NewPage.Parent = Page.Window.Elements.Holder
 
 			local Left = Instance.new("Frame")
@@ -1168,30 +1106,18 @@ do -- Library
 			function Page:Turn(bool)
 				Page.Open = bool
 				NewPage.Visible = Page.Open
-				
-				-- Используем pcall, но не внутри проверок
-				pcall(function()
-					TweenService:Create(AccentLine, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0 or 1}):Play()
-					TweenService:Create(NewTab, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0.95 or 1}):Play()
-				end)
+				TweenService:Create(AccentLine, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0 or 1}):Play()
+				TweenService:Create(NewTab, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0.95 or 1}):Play()
 			end
 			
 			Library:Connection(NewTab.MouseButton1Down, function()
 				if not Page.Open then
-					-- Проверяем существование Pages
-					if Page.Window and Page.Window.Pages then
-						for _, Pages in pairs(Page.Window.Pages) do
-							-- Проверяем, что Pages это таблица и имеет метод Turn
-							if type(Pages) == "table" and Pages.Open and Pages ~= Page and Pages.Turn then
-								Pages:Turn(false)
-							end
+					for _, Pages in pairs(Page.Window.Pages) do
+						if Pages.Open and Pages ~= Page then
+							Pages:Turn(false)
 						end
 					end
-					
-					-- Проверяем, что Page имеет метод Turn
-					if type(Page) == "table" and Page.Turn then
-						Page:Turn(true)
-					end
+					Page:Turn(true)
 				end
 			end)
 
@@ -1203,39 +1129,11 @@ do -- Library
 			}
 
 			
-			-- Проверка и инициализация массива Pages, если он не существует
-			if not Page.Window.Pages then
-				Page.Window.Pages = {}
-			end
-			
-			-- Если это первая страница, активируем её
-			if not Page.Window.Pages or #Page.Window.Pages == 0 then
-				pcall(function()
-					Page:Turn(true)
-				end)
+			if #Page.Window.Pages == 0 then
+				Page:Turn(true)
 			end
 			Page.Window.Pages[#Page.Window.Pages + 1] = Page
-			
-			-- Проверка наличия функции UpdateTabs и её вызов
-			if not Page.Window.UpdateTabs then
-				-- Создаем функцию UpdateTabs, если она отсутствует
-				Page.Window.UpdateTabs = function(self)
-					if not self.Pages then return end
-					
-					for _, PageItem in pairs(self.Pages) do
-						-- Вызываем Turn, но с защитой
-						pcall(function()
-							PageItem:Turn(PageItem.Open or false)
-						end)
-					end
-				end
-			end
-			
-			-- Безопасно вызываем функцию обновления вкладок
-			pcall(function() 
-				Page.Window:UpdateTabs()
-			end)
-			
+			Page.Window:UpdateTabs()
 			return setmetatable(Page, Library.Pages)
 		end
 		
@@ -1433,37 +1331,23 @@ do -- Library
 
 				function MultiSection:Turn(bool)
 					MultiSection.Open = bool
-					
-					-- Используем один pcall для всех операций
-					pcall(function()
-						TweenService:Create(SectionName, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = MultiSection.Open and Color3.fromRGB(27, 27, 27) or Color3.fromRGB(20,20,20)}):Play()
-						SectionContent.Visible = MultiSection.Open
-					end)
+					TweenService:Create(SectionName, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = MultiSection.Open and Color3.fromRGB(27, 27, 27) or Color3.fromRGB(20,20,20)}):Play()
+					SectionContent.Visible = MultiSection.Open
 				end;
 
 				Library:Connection(SectionName.MouseButton1Click, function()
 					if not MultiSection.Open then
-						-- Активируем текущую секцию
-						pcall(function() 
-							MultiSection:Turn(true)
-						end)
-						
-						-- Деактивируем другие секции
-						pcall(function()
-							for _, other_page in pairs(SectionShit2.ActualSections) do
-								if other_page.Open and other_page ~= MultiSection then
-									other_page:Turn(false)
-								end
+						MultiSection:Turn(true)
+						for index, other_page in pairs(SectionShit2.ActualSections) do
+							if other_page.Open and other_page ~= MultiSection then
+								other_page:Turn(false)
 							end
-						end)
+						end
 					end
 				end)
 
-				-- Если это первая секция, активируем её
 				if #SectionShit == 0 then
-					pcall(function()
-						MultiSection:Turn(true)
-					end)
+					MultiSection:Turn(true);
 				end;
 
 				
@@ -1478,14 +1362,7 @@ do -- Library
 
 			
 			Section.Page.Sections[#Section.Page.Sections + 1] = Section;
-			
-			-- Активация первой секции
-			if Section.ActualSections and Section.ActualSections[1] then
-				pcall(function()
-					Section.ActualSections[1]:Turn(true)
-				end)
-			end
-			
+			Section.ActualSections[1]:Turn(true)
 			return table.unpack(Section.ActualSections)
 		end
 		
@@ -1607,11 +1484,7 @@ do -- Library
 				Toggle.Toggled = not Toggle.Toggled
 				TweenService:Create(Accent, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Toggle.Toggled and 0 or 1}):Play()
 				Library.Flags[Toggle.Flag] = Toggle.Toggled
-				
-				-- Проверяем, что Callback это функция
-				if type(Toggle.Callback) == "function" then
-					Toggle.Callback(Toggle.Toggled)
-				end
+				Toggle.Callback(Toggle.Toggled)
 			end
 			
 			Library:Connection(NewToggle.MouseButton1Down, SetState)
@@ -1651,30 +1524,13 @@ do -- Library
 				}
 				local Key
 				local State = false
-				local c = nil -- Добавляем локальную переменную c
 				
 
 				local ModeBox = Instance.new("Frame")
 				local Hold = Instance.new("TextButton")
 				local Toggle = Instance.new("TextButton")
 				local Always = Instance.new("TextButton")
-				local ListValue
-				
-				-- Проверка существования KeyList и создание при необходимости
-				if not Library.KeyList then
-					-- Создаем базовую заглушку для KeyList
-					Library.KeyList = {
-						NewKey = function(self, Key, Name, Mode)
-							return {
-								SetVisible = function() end,
-								Update = function() end
-							}
-						end,
-						SetVisible = function() end
-					}
-				end
-				
-				ListValue = Library.KeyList:NewKey(Keybind.State, Keybind.Name, Keybind.Mode)
+				local ListValue = Library.KeyList:NewKey(Keybind.State, Keybind.Name, Keybind.Mode)
 				
 				local Icon = Instance.new("TextButton")
 				Icon.Name = "Icon"
@@ -1779,15 +1635,10 @@ do -- Library
 					if string.find(tostring(newkey), "Enum") then
 						if c then
 							c:Disconnect()
-							c = nil -- Явно устанавливаем c как nil после отключения
 							if Keybind.Flag then
 								Library.Flags[Keybind.Flag] = false
 							end
-							
-							-- Проверяем, что Callback это функция
-							if type(Keybind.Callback) == "function" then
-								Keybind.Callback(false)
-							end
+							Keybind.Callback(false)
 						end
 						if tostring(newkey):find("Enum.KeyCode.") then
 							newkey = Enum.KeyCode[tostring(newkey):gsub("Enum.KeyCode.", "")]
@@ -1831,11 +1682,8 @@ do -- Library
 								if Keybind.Flag then
 									Library.Flags[Keybind.Flag] = State
 								end
-								-- Проверяем, что Callback это функция
-							if type(Keybind.Callback) == "function" then
 								Keybind.Callback(true)
-							end
-							ListValue:SetVisible(true)
+								ListValue:SetVisible(true)
 							end
 						end
 					else
@@ -1886,10 +1734,7 @@ do -- Library
 							if Keybind.Flag then
 								Library.Flags[Keybind.Flag] = State
 							end
-							-- Проверяем, что Callback это функция
-							if type(Keybind.Callback) == "function" then
-								Keybind.Callback(State)
-							end
+							Keybind.Callback(State)
 							ListValue:SetVisible(State)
 						end
 					end
@@ -1901,7 +1746,6 @@ do -- Library
 							if inp.KeyCode == Key or inp.UserInputType == Key then
 								if c then
 									c:Disconnect()
-									c = nil -- Добавляем nil
 									if Keybind.Flag then
 										Library.Flags[Keybind.Flag] = false
 									end
@@ -2211,11 +2055,7 @@ do -- Library
 				Val = value
 
 				Library.Flags[Slider.Flag] = value
-				
-				-- Проверяем, что Callback это функция
-				if type(Slider.Callback) == "function" then
-					Slider.Callback(value)
-				end
+				Slider.Callback(value)
 			end				
 			
 			local function ISlide(input)
@@ -2264,11 +2104,6 @@ do -- Library
 
 			
 			return Slider
-		end
-		
-		-- Добавляем функцию Dropdown как синоним List
-		function Sections:Dropdown(Properties)
-			return self:List(Properties)
 		end
 		
 		function Sections:List(Properties)
@@ -2509,11 +2344,7 @@ do -- Library
 						Content.Visible = false
 						NewList.ZIndex = 1
 						Library.Flags[Dropdown.Flag] = option
-						
-						-- Проверяем, что Callback это функция
-						if type(Dropdown.Callback) == "function" then
-							Dropdown.Callback(option)
-						end
+						Dropdown.Callback(option)
 					end
 				end)
 			end
@@ -2587,11 +2418,6 @@ do -- Library
 				if Dropdown.Max then
 					table.clear(chosen)
 					option = type(option) == "table" and option or {}
-					
-					-- Убедимся, что chosen инициализирован как пустая таблица
-					if chosen == nil then
-						chosen = {}
-					end
 
 					for opt, tbl in next, Dropdown.OptionInsts do
 						if not table.find(option, opt) then
@@ -2613,21 +2439,10 @@ do -- Library
 						table.insert(textchosen, opt)
 					end
 
-					local concatenatedText = ""
-					if textchosen and #textchosen > 0 then
-						concatenatedText = table.concat(textchosen, ",")
-						if cutobject then
-							concatenatedText = concatenatedText .. ", ..."
-						end
-					end
-					Value.Text = concatenatedText
+					Value.Text = #chosen == 0 and "" or table.concat(textchosen, ",") .. (cutobject and ", ..." or "")
 
 					Library.Flags[Dropdown.Flag] = chosen
-					
-					-- Проверяем, что Callback это функция и chosen не nil
-					if type(Dropdown.Callback) == "function" then
-						Dropdown.Callback(chosen or {})
-					end
+					Dropdown.Callback(chosen)
 				end
 			end
 			
@@ -2647,20 +2462,12 @@ do -- Library
 						Dropdown.OptionInsts[option].accent.Visible = true
 						Value.Text = option
 						Library.Flags[Dropdown.Flag] = chosen
-						
-						-- Проверяем, что Callback это функция
-						if type(Dropdown.Callback) == "function" then
-							Dropdown.Callback(chosen)
-						end
+						Dropdown.Callback(chosen)
 					else
 						chosen = nil
 						Value.Text = "None"
 						Library.Flags[Dropdown.Flag] = chosen
-						
-						-- Проверяем, что Callback это функция
-						if type(Dropdown.Callback) == "function" then
-							Dropdown.Callback(chosen)
-						end
+						Dropdown.Callback(chosen)
 					end
 				end
 			end
@@ -2668,9 +2475,7 @@ do -- Library
 			function Dropdown:Refresh(tbl)
 				for _, opt in next, Dropdown.OptionInsts do
 					coroutine.wrap(function()
-						if opt and opt.button then
-							opt.button:Destroy() -- Заменяем Remove на Destroy
-						end
+						opt.button:Destroy()
 					end)()
 				end
 				table.clear(Dropdown.OptionInsts)
@@ -2684,11 +2489,7 @@ do -- Library
 				end
 
 				Library.Flags[Dropdown.Flag] = chosen
-				
-				-- Проверяем, что Callback это функция и chosen существует
-				if type(Dropdown.Callback) == "function" then
-					Dropdown.Callback(chosen or (Dropdown.Max and {} or nil))
-				end
+				Dropdown.Callback(chosen)
 			end
 
 			
@@ -2697,14 +2498,7 @@ do -- Library
 			else
 				Flags[Dropdown.Flag] = Dropdown
 			end
-
-			-- Устанавливаем начальное значение, если оно указано
-			if Dropdown.State ~= nil then
-				pcall(function() 
-					Dropdown:Set(Dropdown.State)
-				end)
-			end
-			
+			Dropdown:Set(Dropdown.State)
 			return Dropdown
 		end
 		
@@ -2886,7 +2680,6 @@ do -- Library
 			}
 			local Key
 			local State = false
-			local c = nil -- Добавляем локальную переменную c
 			
 
 			local ModeBox = Instance.new("Frame")
@@ -2895,20 +2688,6 @@ do -- Library
 			local Always = Instance.new("TextButton")
 			local ListValue
 			if not Keybind.Ignore then
-				-- Проверка существования KeyList и создание при необходимости
-				if not Library.KeyList then
-					-- Создаем базовую заглушку для KeyList
-					Library.KeyList = {
-						NewKey = function(self, Key, Name, Mode)
-							return {
-								SetVisible = function() end,
-								Update = function() end
-							}
-						end,
-						SetVisible = function() end
-					}
-				end
-				
 				ListValue = Library.KeyList:NewKey(Keybind.State, Keybind.Name, Keybind.Mode)
 			end
 			
@@ -3044,7 +2823,6 @@ do -- Library
 				if string.find(tostring(newkey), "Enum") then
 					if c then
 						c:Disconnect()
-						c = nil -- Явно устанавливаем c как nil после отключения
 						if Keybind.Flag then
 							Library.Flags[Keybind.Flag] = false
 						end
@@ -3166,7 +2944,6 @@ do -- Library
 						if inp.KeyCode == Key or inp.UserInputType == Key then
 							if c then
 								c:Disconnect()
-								c = nil -- Добавляем nil
 								if Keybind.Flag then
 									Library.Flags[Keybind.Flag] = false
 								end
@@ -3357,21 +3134,14 @@ do -- Library
 
 			
 			Value.FocusLost:Connect(function()
-				-- Проверяем, что Callback это функция
-				if type(Textbox.Callback) == "function" then
-					Textbox.Callback(Value.Text)
-				end
+				Textbox.Callback(Value.Text)
 				Library.Flags[Textbox.Flag] = Value.Text
 			end)
 			
 			local function set(str)
 				Value.Text = str
 				Library.Flags[Textbox.Flag] = str
-				
-				-- Проверяем, что Callback это функция
-				if type(Textbox.Callback) == "function" then
-					Textbox.Callback(str)
-				end
+				Textbox.Callback(str)
 			end
 
 			
@@ -3451,11 +3221,7 @@ do -- Library
 			Frame.Parent = NewButton
 			
 			Library:Connection(NewButton.MouseButton1Down, function()
-				-- Проверяем, что Callback это функция
-				if type(Button.Callback) == "function" then
-					Button.Callback()
-				end
-				
+				Button.Callback()
 				TweenService:Create(Value, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Library.Accent}):Play()
 				task.spawn(function()
 					task.wait(0.25)
@@ -4282,231 +4048,130 @@ do
 	end
 end
 
--- Добавляем функцию прогресс-бара для отображения в консоли
-function Library:ShowLoadingBar(progress, maxProgress, length, fill, empty)
-    fill = fill or '█'
-    empty = empty or '░'
-    length = length or 30
-    
-    local percentage = math.floor((progress / maxProgress) * 100)
-    local filledLength = math.floor(length * progress / maxProgress)
-    
-    local bar = string.rep(fill, filledLength) .. string.rep(empty, length - filledLength)
-    print(string.format("[%s] %d%%", bar, percentage))
-end
+-- LoadingBar implementation
+local LoadingBar = {
+    TotalAssets = 0,
+    LoadedAssets = 0,
+    LoadingBarInstance = nil,
+    StatusText = nil,
+    OnComplete = nil
+}
 
--- Функция для создания и обновления визуального прогресс-бара
-function Library:CreateVisualLoadingBar(title)
-    -- Удаляем старый прогресс-бар, если он существует
-    if self.ProgressBarUI and self.ProgressBarUI.Parent then
-        self.ProgressBarUI:Destroy()
+do
+    function LoadingBar:Create()
+        local LoadingBarGui = Instance.new("ScreenGui", Path)
+        LoadingBarGui.Name = "LoadingBarGui"
+        LoadingBarGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        LoadingBarGui.DisplayOrder = 9999
+
+        local MainFrame = Instance.new("Frame")
+        MainFrame.Name = "MainFrame"
+        MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        MainFrame.BorderColor3 = Color3.fromRGB(30, 30, 30)
+        MainFrame.BorderSizePixel = 0
+        MainFrame.Size = UDim2.new(1, 0, 0, 4)
+        MainFrame.Position = UDim2.new(0, 0, 0, 0)
+
+        local ProgressFrame = Library:NewInstance("Frame", true)
+        ProgressFrame.Name = "ProgressFrame"
+        ProgressFrame.BackgroundColor3 = Library.Accent
+        ProgressFrame.BorderSizePixel = 0
+        ProgressFrame.Size = UDim2.new(0, 0, 1, 0)
+        ProgressFrame.Parent = MainFrame
+        self.LoadingBarInstance = ProgressFrame
+
+        local UIGradient = Instance.new("UIGradient")
+        UIGradient.Name = "UIGradient"
+        UIGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120)),
+        })
+        UIGradient.Rotation = 90
+        UIGradient.Parent = ProgressFrame
+
+        local StatusText = Instance.new("TextLabel")
+        StatusText.Name = "StatusText"
+        StatusText.FontFace = menu_font
+        StatusText.Text = "Loading assets: 0%"
+        StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        StatusText.TextSize = Library.FSize
+        StatusText.TextStrokeTransparency = 0
+        StatusText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        StatusText.BackgroundTransparency = 1
+        StatusText.Position = UDim2.new(0, 10, 0, 4)
+        StatusText.Size = UDim2.new(1, -10, 0, 20)
+        StatusText.TextXAlignment = Enum.TextXAlignment.Left
+        StatusText.Parent = MainFrame
+        self.StatusText = StatusText
+
+        MainFrame.Parent = LoadingBarGui
+        self.LoadingBarGui = LoadingBarGui
+
+        return self
     end
-    
-    -- Создаем новый прогресс-бар
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ProgressBarUI"
-    screenGui.DisplayOrder = 9999
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 300, 0, 50)
-    mainFrame.Position = UDim2.new(0.5, -150, 0.2, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    mainFrame.BorderColor3 = Color3.fromRGB(30, 30, 30)
-    mainFrame.BorderSizePixel = 1
-    mainFrame.Parent = screenGui
-    
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "TitleLabel"
-    titleLabel.Text = title or "Загрузка..."
-    titleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    titleLabel.TextSize = 14
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Size = UDim2.new(1, 0, 0, 20)
-    titleLabel.Position = UDim2.new(0, 0, 0, 5)
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextStrokeTransparency = 0
-    titleLabel.Parent = mainFrame
-    
-    -- Акцентная линия
-    local accentLine = Instance.new("Frame")
-    accentLine.Name = "AccentLine"
-    accentLine.Size = UDim2.new(1, 0, 0, 1)
-    accentLine.Position = UDim2.new(0, 0, 0, 25)
-    accentLine.BackgroundColor3 = self.Accent or Color3.fromRGB(132, 108, 188)
-    accentLine.BorderSizePixel = 0
-    accentLine.Parent = mainFrame
-    
-    -- Фон прогресс-бара
-    local barBG = Instance.new("Frame")
-    barBG.Name = "BarBackground"
-    barBG.Size = UDim2.new(0.95, 0, 0, 10)
-    barBG.Position = UDim2.new(0.025, 0, 0, 30)
-    barBG.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    barBG.BorderColor3 = Color3.fromRGB(40, 40, 40)
-    barBG.BorderSizePixel = 1
-    barBG.Parent = mainFrame
-    
-    -- Заполнение прогресс-бара
-    local barFill = Instance.new("Frame")
-    barFill.Name = "BarFill"
-    barFill.Size = UDim2.new(0, 0, 1, 0)
-    barFill.BackgroundColor3 = self.Accent or Color3.fromRGB(132, 108, 188)
-    barFill.BorderSizePixel = 0
-    barFill.Parent = barBG
-    
-    -- Градиент для заполнения
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))
-    })
-    gradient.Rotation = 90
-    gradient.Parent = barFill
-    
-    -- Текст процента
-    local percentLabel = Instance.new("TextLabel")
-    percentLabel.Name = "PercentLabel"
-    percentLabel.Text = "0%"
-    percentLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    percentLabel.TextSize = 12
-    percentLabel.BackgroundTransparency = 1
-    percentLabel.Size = UDim2.new(1, 0, 0, 10)
-    percentLabel.Position = UDim2.new(0, 0, 0, 30)
-    percentLabel.Font = Enum.Font.GothamBold
-    percentLabel.TextStrokeTransparency = 0
-    percentLabel.Parent = mainFrame
-    
-    -- Добавление теней
-    local shadowHolder = Instance.new("Frame")
-    shadowHolder.Name = "ShadowHolder"
-    shadowHolder.BackgroundTransparency = 1
-    shadowHolder.Position = UDim2.new(-0.05, 0, -0.1, 0)
-    shadowHolder.Size = UDim2.new(1.1, 0, 1.2, 0)
-    shadowHolder.ZIndex = -1
-    
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.Image = "rbxassetid://1316045217"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.6
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.BackgroundTransparency = 1
-    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    shadow.Size = UDim2.new(1, 10, 1, 10)
-    shadow.ZIndex = -1
-    shadow.Parent = shadowHolder
-    
-    shadowHolder.Parent = mainFrame
-    
-    screenGui.Parent = game:GetService("RunService"):IsStudio() and game.Players.LocalPlayer.PlayerGui or game.CoreGui
-    
-    self.ProgressBarUI = screenGui
-    self.ProgressBarFill = barFill
-    self.ProgressBarText = percentLabel
-    
-    -- Возвращаем объект прогресс-бара
-    return {
-        Update = function(progress, maxProgress)
-            local percentage = progress / maxProgress
-            local percentDisplay = math.floor(percentage * 100)
-            
-            -- Обновляем заполнение
-            barFill:TweenSize(
-                UDim2.new(percentage, 0, 1, 0),
-                Enum.EasingDirection.Out,
-                Enum.EasingStyle.Quad,
-                0.2,
-                true
-            )
-            
-            -- Обновляем текст
-            percentLabel.Text = percentDisplay .. "%"
-            
-            -- Если загрузка завершена
-            if percentDisplay >= 100 then
-                game:GetService("TweenService"):Create(
-                    mainFrame,
+
+    function LoadingBar:SetTotalAssets(count)
+        self.TotalAssets = count
+        return self
+    end
+
+    function LoadingBar:IncrementLoaded(text)
+        self.LoadedAssets = self.LoadedAssets + 1
+        
+        local percent = 0
+        if self.TotalAssets > 0 then
+            percent = math.min(self.LoadedAssets / self.TotalAssets, 1)
+        end
+        
+        -- Update the visual progress bar
+        if self.LoadingBarInstance then
+            TweenService:Create(
+                self.LoadingBarInstance, 
+                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                {Size = UDim2.new(percent, 0, 1, 0)}
+            ):Play()
+        end
+        
+        -- Update status text if provided
+        if text and self.StatusText then
+            self.StatusText.Text = text .. string.format(": %d%%", percent * 100)
+        elseif self.StatusText then
+            self.StatusText.Text = string.format("Loading assets: %d%%", percent * 100)
+        end
+        
+        -- Check if loading is complete
+        if self.LoadedAssets >= self.TotalAssets and self.OnComplete then
+            task.delay(0.5, function()
+                self:OnComplete()
+            end)
+        end
+        
+        return self
+    end
+
+    function LoadingBar:OnComplete(callback)
+        if callback then
+            self.OnComplete = callback
+            return self
+        else
+            if self.LoadingBarGui then
+                -- Hide the loading bar with animation
+                TweenService:Create(
+                    self.LoadingBarGui, 
                     TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    {Position = UDim2.new(0.5, -150, -0.2, 0)}
+                    {Position = UDim2.new(0, 0, -1, 0)}
                 ):Play()
                 
                 task.delay(0.6, function()
-                    screenGui:Destroy()
+                    self.LoadingBarGui:Destroy()
+                    self.LoadingBarGui = nil
+                    self.LoadingBarInstance = nil
+                    self.StatusText = nil
                 end)
             end
-        end,
-        
-        Destroy = function()
-            if screenGui and screenGui.Parent then
-                screenGui:Destroy()
-            end
         end
-    }
-end
+    end
 
--- Обертка, чтобы показывать оба прогресс-бара одновременно
-function Library:ShowLoadingProgress(progress, maxProgress, title)
-    -- Показываем консольный прогресс-бар
-    self:ShowLoadingBar(progress, maxProgress)
-    
-    -- Если визуальный прогресс-бар еще не создан, создаем его
-    if not self.VisualLoadingBar then
-        self.VisualLoadingBar = self:CreateVisualLoadingBar(title)
-    end
-    
-    -- Обновляем визуальный прогресс-бар
-    self.VisualLoadingBar.Update(progress, maxProgress)
-    
-    -- Если загрузка завершена, удаляем ссылку на прогресс-бар
-    if progress >= maxProgress then
-        task.delay(0.7, function()
-            self.VisualLoadingBar = nil
-        end)
-    end
+    -- Expose LoadingBar to the Library
+    Library.LoadingBar = LoadingBar
 end
-
--- Функция для обновления масштаба UI
-function Library:SetUIScale(scale)
-    if typeof(scale) ~= "number" or scale <= 0 then
-        warn("UI scale must be a positive number!")
-        return
-    end
-    
-    -- Сохраняем новый масштаб 
-    self.UIScale = scale
-    self.FSize = math.floor(11 * scale) -- Обновляем базовый размер шрифта (база 11)
-    
-    -- Обновляем масштаб всех текстовых элементов
-    for _, obj in pairs(self.ThemeObjects) do
-        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
-            if obj.TextSize ~= nil then
-                obj.TextSize = math.floor(11 * scale)
-            end
-        end
-    end
-    
-    -- Если есть ScreenGUI с UIScale, обновляем его
-    if self.Holder and self.Holder.Parent then
-        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")
-        if not uiScale then
-            uiScale = Instance.new("UIScale")
-            uiScale.Parent = self.Holder.Parent
-        end
-        uiScale.Scale = scale
-        
-        -- Обновляем масштаб для всех созданных окон
-        for _, window in pairs(self.Windows or {}) do
-            if window.UIScale then
-                window.UIScale = scale
-            end
-        end
-    end
-    
-    print(string.format("UI scale set to: %.2fx", scale))
-end
-
-return Library;
