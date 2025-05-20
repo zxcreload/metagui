@@ -2619,6 +2619,11 @@ do -- Library
 				if Dropdown.Max then
 					table.clear(chosen)
 					option = type(option) == "table" and option or {}
+					
+					-- Убедимся, что chosen инициализирован как пустая таблица
+					if chosen == nil then
+						chosen = {}
+					end
 
 					for opt, tbl in next, Dropdown.OptionInsts do
 						if not table.find(option, opt) then
@@ -2640,10 +2645,21 @@ do -- Library
 						table.insert(textchosen, opt)
 					end
 
-					Value.Text = #chosen == 0 and "" or table.concat(textchosen, ",") .. (cutobject and ", ..." or "")
+					local concatenatedText = ""
+					if textchosen and #textchosen > 0 then
+						concatenatedText = table.concat(textchosen, ",")
+						if cutobject then
+							concatenatedText = concatenatedText .. ", ..."
+						end
+					end
+					Value.Text = concatenatedText
 
 					Library.Flags[Dropdown.Flag] = chosen
-					Dropdown.Callback(chosen)
+					
+					-- Проверяем, что Callback это функция и chosen не nil
+					if type(Dropdown.Callback) == "function" then
+						Dropdown.Callback(chosen or {})
+					end
 				end
 			end
 			
@@ -2663,12 +2679,20 @@ do -- Library
 						Dropdown.OptionInsts[option].accent.Visible = true
 						Value.Text = option
 						Library.Flags[Dropdown.Flag] = chosen
-						Dropdown.Callback(chosen)
+						
+						-- Проверяем, что Callback это функция
+						if type(Dropdown.Callback) == "function" then
+							Dropdown.Callback(chosen)
+						end
 					else
 						chosen = nil
 						Value.Text = "None"
 						Library.Flags[Dropdown.Flag] = chosen
-						Dropdown.Callback(chosen)
+						
+						-- Проверяем, что Callback это функция
+						if type(Dropdown.Callback) == "function" then
+							Dropdown.Callback(chosen)
+						end
 					end
 				end
 			end
@@ -2692,7 +2716,11 @@ do -- Library
 				end
 
 				Library.Flags[Dropdown.Flag] = chosen
-				Dropdown.Callback(chosen)
+				
+				-- Проверяем, что Callback это функция и chosen существует
+				if type(Dropdown.Callback) == "function" then
+					Dropdown.Callback(chosen or (Dropdown.Max and {} or nil))
+				end
 			end
 
 			
@@ -2701,7 +2729,14 @@ do -- Library
 			else
 				Flags[Dropdown.Flag] = Dropdown
 			end
-			Dropdown:Set(Dropdown.State)
+
+			-- Устанавливаем начальное значение, если оно указано
+			if Dropdown.State ~= nil then
+				pcall(function() 
+					Dropdown:Set(Dropdown.State)
+				end)
+			end
+			
 			return Dropdown
 		end
 		
