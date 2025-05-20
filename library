@@ -986,26 +986,19 @@ do -- Library
 
 			
 					function Window:UpdateTabs()
-			-- Проверяем, что Window и Window.Pages существуют
-			if not Window then
-				return
+				-- Просто проверим, что Pages существует
+				if not Window.Pages then
+					Window.Pages = {}
+					return
+				end
+				
+				-- Перебираем страницы и обновляем их состояние
+				for _, Page in pairs(Window.Pages) do
+					pcall(function()
+						Page:Turn(Page.Open)
+					end)
+				end
 			end
-			
-			if not Window.Pages or type(Window.Pages) ~= "table" then
-				Window.Pages = {}
-				return
-			end
-			
-			-- Безопасно вызываем Turn для каждой страницы
-			for Index, Page in pairs(Window.Pages) do
-				pcall(function()
-					-- Проверяем, что Page это таблица и имеет метод Turn
-					if type(Page) == "table" and type(Page.Turn) == "function" then
-						Page:Turn(Page.Open or false)
-					end
-				end)
-			end
-		end
 
 			-- Добавляем метод Page к объекту Window
 			function Window:Page(Properties)
@@ -1174,23 +1167,13 @@ do -- Library
 
 			function Page:Turn(bool)
 				Page.Open = bool
+				NewPage.Visible = Page.Open
 				
-				-- Проверяем существование всех необходимых объектов перед их использованием
-				if NewPage then 
-					NewPage.Visible = Page.Open 
-				end
-				
-				if AccentLine and TweenService then
-					pcall(function()
-						TweenService:Create(AccentLine, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0 or 1}):Play()
-					end)
-				end
-				
-				if NewTab and TweenService then
-					pcall(function()
-						TweenService:Create(NewTab, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0.95 or 1}):Play()
-					end)
-				end
+				-- Используем pcall, но не внутри проверок
+				pcall(function()
+					TweenService:Create(AccentLine, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0 or 1}):Play()
+					TweenService:Create(NewTab, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Page.Open and 0.95 or 1}):Play()
+				end)
 			end
 			
 			Library:Connection(NewTab.MouseButton1Down, function()
@@ -1225,43 +1208,32 @@ do -- Library
 				Page.Window.Pages = {}
 			end
 			
-			if Page.Window and Page.Window.Pages and #Page.Window.Pages == 0 then
-				-- Безопасно вызываем Turn
+			-- Если это первая страница, активируем её
+			if not Page.Window.Pages or #Page.Window.Pages == 0 then
 				pcall(function()
-					-- Проверяем, что Page имеет метод Turn
-					if type(Page) == "table" and type(Page.Turn) == "function" then
-						Page:Turn(true)
-					end
+					Page:Turn(true)
 				end)
 			end
 			Page.Window.Pages[#Page.Window.Pages + 1] = Page
 			
-			-- Безопасно обновляем вкладки
-			pcall(function()
-				-- Проверка наличия функции UpdateTabs и её вызов
-				if Page.Window and type(Page.Window.UpdateTabs) == "function" then
-					Page.Window:UpdateTabs()
-				elseif Page.Window then
-					-- Создаем функцию UpdateTabs, если она отсутствует
-					Page.Window.UpdateTabs = function(self)
-						if not self or not self.Pages or type(self.Pages) ~= "table" then
-							return
-						end
-						
-						for _, PageItem in pairs(self.Pages) do
-							-- Безопасно вызываем Turn
-							pcall(function()
-								-- Проверяем, что PageItem является таблицей и имеет метод Turn
-								if type(PageItem) == "table" and type(PageItem.Turn) == "function" then
-									PageItem:Turn(PageItem.Open or false)
-								end
-							end)
-						end
-					end
+			-- Проверка наличия функции UpdateTabs и её вызов
+			if not Page.Window.UpdateTabs then
+				-- Создаем функцию UpdateTabs, если она отсутствует
+				Page.Window.UpdateTabs = function(self)
+					if not self.Pages then return end
 					
-					-- Вызываем новую функцию
-					Page.Window:UpdateTabs()
+					for _, PageItem in pairs(self.Pages) do
+						-- Вызываем Turn, но с защитой
+						pcall(function()
+							PageItem:Turn(PageItem.Open or false)
+						end)
+					end
 				end
+			end
+			
+			-- Безопасно вызываем функцию обновления вкладок
+			pcall(function() 
+				Page.Window:UpdateTabs()
 			end)
 			
 			return setmetatable(Page, Library.Pages)
@@ -1462,42 +1434,36 @@ do -- Library
 				function MultiSection:Turn(bool)
 					MultiSection.Open = bool
 					
-					-- Защищаем вызов от ошибок
-					if TweenService and SectionName then
-						pcall(function()
-							TweenService:Create(SectionName, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = MultiSection.Open and Color3.fromRGB(27, 27, 27) or Color3.fromRGB(20,20,20)}):Play()
-						end)
-					end
-					
-					if SectionContent then
+					-- Используем один pcall для всех операций
+					pcall(function()
+						TweenService:Create(SectionName, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = MultiSection.Open and Color3.fromRGB(27, 27, 27) or Color3.fromRGB(20,20,20)}):Play()
 						SectionContent.Visible = MultiSection.Open
-					end
+					end)
 				end;
 
 				Library:Connection(SectionName.MouseButton1Click, function()
 					if not MultiSection.Open then
-						-- Проверяем, что MultiSection это таблица, а не функция, перед вызовом Turn
-						if type(MultiSection) == "table" and MultiSection.Turn then
+						-- Активируем текущую секцию
+						pcall(function() 
 							MultiSection:Turn(true)
-						end
+						end)
 						
-						-- Проверяем, что ActualSections существует
-						if SectionShit2.ActualSections then
-							for index, other_page in pairs(SectionShit2.ActualSections) do
-								-- Проверяем, что other_page это таблица и имеет метод Turn
-								if type(other_page) == "table" and other_page.Open and other_page ~= MultiSection and other_page.Turn then
+						-- Деактивируем другие секции
+						pcall(function()
+							for _, other_page in pairs(SectionShit2.ActualSections) do
+								if other_page.Open and other_page ~= MultiSection then
 									other_page:Turn(false)
 								end
 							end
-						end
+						end)
 					end
 				end)
 
+				-- Если это первая секция, активируем её
 				if #SectionShit == 0 then
-					-- Проверка типа MultiSection и наличия метода Turn
-					if type(MultiSection) == "table" and MultiSection.Turn then
-						MultiSection:Turn(true);
-					end
+					pcall(function()
+						MultiSection:Turn(true)
+					end)
 				end;
 
 				
@@ -1513,9 +1479,11 @@ do -- Library
 			
 			Section.Page.Sections[#Section.Page.Sections + 1] = Section;
 			
-			-- Проверка существования первой секции и метода Turn
-			if Section.ActualSections and Section.ActualSections[1] and type(Section.ActualSections[1]) == "table" and Section.ActualSections[1].Turn then
-				Section.ActualSections[1]:Turn(true)
+			-- Активация первой секции
+			if Section.ActualSections and Section.ActualSections[1] then
+				pcall(function()
+					Section.ActualSections[1]:Turn(true)
+				end)
 			end
 			
 			return table.unpack(Section.ActualSections)
