@@ -92,6 +92,7 @@ do -- Library
 		UIKey = Enum.KeyCode.End;
 		ScreenGUI = nil;
 		FSize = 10;
+		UIScale = 1.0;
 		UIFont = nil;
 		SettingsPage = nil;
 		VisValues = {};
@@ -661,18 +662,26 @@ do -- Library
 		local Sections = Library.Sections;
 		
 		function Library:Window(Options)
+			Options = Options or {}
+			
 			local Window = {
 				Pages = {};
 				Sections = {};
 				Elements = {};
 				Dragging = { false, UDim2.new(0, 0, 0, 0) };
+				UIScale = Options.Scale or self.UIScale or 1.0;
 			};
 			
 			local FentFun = Instance.new("ScreenGui", Path)
 			FentFun.Name = "fent.fun"
 			FentFun.DisplayOrder = 1000
 			FentFun.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+			
+			-- Добавляем UIScale для всего GUI
+			local uiScale = Instance.new("UIScale")
+			uiScale.Scale = Window.UIScale
+			uiScale.Parent = FentFun
+			
 			local ImageLabel = Instance.new("ImageLabel")
 			ImageLabel.Name = "ImageLabel"
 			ImageLabel.Image = "rbxassetid://297774371"
@@ -4064,6 +4073,49 @@ do
 		NewInd.Position = UDim2.new(0,Position.X,0,Position.Y + (table.find(Notifications.Notifs, notification) * 25))
 		return notification
 	end
+end
+
+-- Добавляем функцию прогресс-бара для отображения в консоли
+function Library:ShowLoadingBar(progress, maxProgress, length, fill, empty)
+    fill = fill or '█'
+    empty = empty or '░'
+    length = length or 30
+    
+    local percentage = math.floor((progress / maxProgress) * 100)
+    local filledLength = math.floor(length * progress / maxProgress)
+    
+    local bar = string.rep(fill, filledLength) .. string.rep(empty, length - filledLength)
+    print(string.format("[%s] %d%%", bar, percentage))
+end
+
+-- Функция для обновления масштаба UI
+function Library:SetUIScale(scale)
+    if typeof(scale) ~= "number" or scale <= 0 then
+        warn("UI scale must be a positive number!")
+        return
+    end
+    
+    self.UIScale = scale
+    self.FSize = math.floor(10 * scale) -- Обновляем базовый размер шрифта
+    
+    -- Обновляем масштаб всех текстовых элементов
+    for _, obj in pairs(self.ThemeObjects) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            obj.TextSize = obj.TextSize * scale
+        end
+    end
+    
+    -- Если есть ScreenGUI с UIScale, обновляем его
+    if self.Holder and self.Holder.Parent then
+        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")
+        if not uiScale then
+            uiScale = Instance.new("UIScale")
+            uiScale.Parent = self.Holder.Parent
+        end
+        uiScale.Scale = scale
+    end
+    
+    print(string.format("UI scale set to: %.1fx", scale))
 end
 
 return Library;
