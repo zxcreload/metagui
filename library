@@ -29,11 +29,149 @@ do
 	getgenv().menu_font = Font.new(getcustomasset("menu_font.font"), Enum.FontWeight.Regular)
 end; 
 
+-- Loading Bar Implementation
+do
+    Library.LoadingBar = {
+        ScreenGui = nil,
+        BarFrame = nil,
+        ProgressBar = nil,
+        StatusText = nil,
+        Steps = 0,
+        CurrentStep = 0,
+        CallbacksOnComplete = {},
+    }
+    
+    function Library.LoadingBar:Initialize()
+        -- Create the loading bar UI
+        local ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Name = "LoadingBarGui"
+        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        ScreenGui.DisplayOrder = 9999
+        ScreenGui.Parent = Path
+        self.ScreenGui = ScreenGui
+        
+        local BarOutline = Instance.new("Frame")
+        BarOutline.Name = "BarOutline"
+        BarOutline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        BarOutline.BorderSizePixel = 0
+        BarOutline.Position = UDim2.new(0, 0, 0, 0)
+        BarOutline.Size = UDim2.new(1, 0, 0, 4)
+        BarOutline.Parent = ScreenGui
+        self.BarFrame = BarOutline
+        
+        local ProgressBar = Instance.new("Frame")
+        ProgressBar.Name = "ProgressBar"
+        ProgressBar.BackgroundColor3 = Library.Accent or Color3.fromRGB(132, 108, 188)
+        ProgressBar.BorderSizePixel = 0
+        ProgressBar.Size = UDim2.new(0, 0, 1, 0)
+        ProgressBar.Parent = BarOutline
+        self.ProgressBar = ProgressBar
+        
+        local UIGradient = Instance.new("UIGradient")
+        UIGradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 180, 180))
+        })
+        UIGradient.Rotation = 90
+        UIGradient.Parent = ProgressBar
+        
+        local StatusText = Instance.new("TextLabel")
+        StatusText.Name = "StatusText"
+        StatusText.FontFace = menu_font
+        StatusText.Text = "Loading... 0%"
+        StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        StatusText.TextSize = 12
+        StatusText.TextStrokeTransparency = 0
+        StatusText.BackgroundTransparency = 1
+        StatusText.Position = UDim2.new(0, 5, 0, 9)
+        StatusText.Size = UDim2.new(0, 200, 0, 20)
+        StatusText.TextXAlignment = Enum.TextXAlignment.Left
+        StatusText.Parent = ScreenGui
+        self.StatusText = StatusText
+        
+        -- Add to theme objects
+        table.insert(Library.ThemeObjects, ProgressBar)
+        
+        return self
+    end
+    
+    function Library.LoadingBar:SetSteps(steps)
+        self.Steps = steps
+        self.CurrentStep = 0
+        return self
+    end
+    
+    function Library.LoadingBar:NextStep(text)
+        self.CurrentStep = math.min(self.CurrentStep + 1, self.Steps)
+        self:UpdateBar(text)
+        return self
+    end
+    
+    function Library.LoadingBar:UpdateBar(text)
+        local progress = self.CurrentStep / self.Steps
+        local percentage = math.floor(progress * 100)
+        
+        -- Update progress bar
+        game:GetService("TweenService"):Create(
+            self.ProgressBar, 
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+            {Size = UDim2.new(progress, 0, 1, 0)}
+        ):Play()
+        
+        -- Update status text
+        self.StatusText.Text = text and (text .. " " .. percentage .. "%") or ("Loading... " .. percentage .. "%")
+        
+        -- Call completion callbacks if finished
+        if self.CurrentStep >= self.Steps then
+            for _, callback in ipairs(self.CallbacksOnComplete) do
+                pcall(callback)
+            end
+        end
+        
+        return self
+    end
+    
+    function Library.LoadingBar:OnComplete(callback)
+        if type(callback) == "function" then
+            table.insert(self.CallbacksOnComplete, callback)
+        end
+        return self
+    end
+    
+    function Library.LoadingBar:Finish()
+        task.spawn(function()
+            task.wait(1)  -- Give time to show 100%
+            game:GetService("TweenService"):Create(
+                self.ScreenGui, 
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {BackgroundTransparency = 1}
+            ):Play()
+            
+            game:GetService("TweenService"):Create(
+                self.BarFrame, 
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {Position = UDim2.new(0, 0, -0.1, 0)}
+            ):Play()
+            
+            game:GetService("TweenService"):Create(
+                self.StatusText, 
+                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+                {TextTransparency = 1, TextStrokeTransparency = 1}
+            ):Play()
+            
+            task.wait(0.5)
+            self.ScreenGui:Destroy()
+        end)
+        return self
+    end
+end
+
 do -- Library
 	Library = {
 		Open = true;
 		Accent = Color3.fromRGB(132, 108, 188);
 		Pages = {};
+		
 		Sections = {};
 		Flags = {};
 		UnNamedFlags = 0;
@@ -4046,132 +4184,4 @@ do
 		NewInd.Position = UDim2.new(0,Position.X,0,Position.Y + (table.find(Notifications.Notifs, notification) * 25))
 		return notification
 	end
-end
-
--- LoadingBar implementation
-local LoadingBar = {
-    TotalAssets = 0,
-    LoadedAssets = 0,
-    LoadingBarInstance = nil,
-    StatusText = nil,
-    OnComplete = nil
-}
-
-do
-    function LoadingBar:Create()
-        local LoadingBarGui = Instance.new("ScreenGui", Path)
-        LoadingBarGui.Name = "LoadingBarGui"
-        LoadingBarGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        LoadingBarGui.DisplayOrder = 9999
-
-        local MainFrame = Instance.new("Frame")
-        MainFrame.Name = "MainFrame"
-        MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-        MainFrame.BorderColor3 = Color3.fromRGB(30, 30, 30)
-        MainFrame.BorderSizePixel = 0
-        MainFrame.Size = UDim2.new(1, 0, 0, 4)
-        MainFrame.Position = UDim2.new(0, 0, 0, 0)
-
-        local ProgressFrame = Library:NewInstance("Frame", true)
-        ProgressFrame.Name = "ProgressFrame"
-        ProgressFrame.BackgroundColor3 = Library.Accent
-        ProgressFrame.BorderSizePixel = 0
-        ProgressFrame.Size = UDim2.new(0, 0, 1, 0)
-        ProgressFrame.Parent = MainFrame
-        self.LoadingBarInstance = ProgressFrame
-
-        local UIGradient = Instance.new("UIGradient")
-        UIGradient.Name = "UIGradient"
-        UIGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120)),
-        })
-        UIGradient.Rotation = 90
-        UIGradient.Parent = ProgressFrame
-
-        local StatusText = Instance.new("TextLabel")
-        StatusText.Name = "StatusText"
-        StatusText.FontFace = menu_font
-        StatusText.Text = "Loading assets: 0%"
-        StatusText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        StatusText.TextSize = Library.FSize
-        StatusText.TextStrokeTransparency = 0
-        StatusText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        StatusText.BackgroundTransparency = 1
-        StatusText.Position = UDim2.new(0, 10, 0, 4)
-        StatusText.Size = UDim2.new(1, -10, 0, 20)
-        StatusText.TextXAlignment = Enum.TextXAlignment.Left
-        StatusText.Parent = MainFrame
-        self.StatusText = StatusText
-
-        MainFrame.Parent = LoadingBarGui
-        self.LoadingBarGui = LoadingBarGui
-
-        return self
-    end
-
-    function LoadingBar:SetTotalAssets(count)
-        self.TotalAssets = count
-        return self
-    end
-
-    function LoadingBar:IncrementLoaded(text)
-        self.LoadedAssets = self.LoadedAssets + 1
-        
-        local percent = 0
-        if self.TotalAssets > 0 then
-            percent = math.min(self.LoadedAssets / self.TotalAssets, 1)
-        end
-        
-        -- Update the visual progress bar
-        if self.LoadingBarInstance then
-            TweenService:Create(
-                self.LoadingBarInstance, 
-                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size = UDim2.new(percent, 0, 1, 0)}
-            ):Play()
-        end
-        
-        -- Update status text if provided
-        if text and self.StatusText then
-            self.StatusText.Text = text .. string.format(": %d%%", percent * 100)
-        elseif self.StatusText then
-            self.StatusText.Text = string.format("Loading assets: %d%%", percent * 100)
-        end
-        
-        -- Check if loading is complete
-        if self.LoadedAssets >= self.TotalAssets and self.OnComplete then
-            task.delay(0.5, function()
-                self:OnComplete()
-            end)
-        end
-        
-        return self
-    end
-
-    function LoadingBar:OnComplete(callback)
-        if callback then
-            self.OnComplete = callback
-            return self
-        else
-            if self.LoadingBarGui then
-                -- Hide the loading bar with animation
-                TweenService:Create(
-                    self.LoadingBarGui, 
-                    TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    {Position = UDim2.new(0, 0, -1, 0)}
-                ):Play()
-                
-                task.delay(0.6, function()
-                    self.LoadingBarGui:Destroy()
-                    self.LoadingBarGui = nil
-                    self.LoadingBarInstance = nil
-                    self.StatusText = nil
-                end)
-            end
-        end
-    end
-
-    -- Expose LoadingBar to the Library
-    Library.LoadingBar = LoadingBar
 end
