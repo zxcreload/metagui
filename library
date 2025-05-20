@@ -986,8 +986,14 @@ do -- Library
 
 			
 			function Window:UpdateTabs()
-				for Index, Page in pairs(Window.Pages) do
-					Page:Turn(Page.Open)
+				-- Проверяем, что Window.Pages существует
+				if Window.Pages then
+					for Index, Page in pairs(Window.Pages) do
+						-- Проверяем, что Page это таблица и имеет метод Turn
+						if type(Page) == "table" and Page.Turn then
+							Page:Turn(Page.Open)
+						end
+					end
 				end
 			end
 
@@ -1165,12 +1171,20 @@ do -- Library
 			
 			Library:Connection(NewTab.MouseButton1Down, function()
 				if not Page.Open then
-					for _, Pages in pairs(Page.Window.Pages) do
-						if Pages.Open and Pages ~= Page then
-							Pages:Turn(false)
+					-- Проверяем существование Pages
+					if Page.Window and Page.Window.Pages then
+						for _, Pages in pairs(Page.Window.Pages) do
+							-- Проверяем, что Pages это таблица и имеет метод Turn
+							if type(Pages) == "table" and Pages.Open and Pages ~= Page and Pages.Turn then
+								Pages:Turn(false)
+							end
 						end
 					end
-					Page:Turn(true)
+					
+					-- Проверяем, что Page имеет метод Turn
+					if type(Page) == "table" and Page.Turn then
+						Page:Turn(true)
+					end
 				end
 			end)
 
@@ -1187,8 +1201,11 @@ do -- Library
 				Page.Window.Pages = {}
 			end
 			
-			if #Page.Window.Pages == 0 then
-				Page:Turn(true)
+			if Page.Window.Pages and #Page.Window.Pages == 0 then
+				-- Проверяем, что Page имеет метод Turn
+				if type(Page) == "table" and Page.Turn then
+					Page:Turn(true)
+				end
 			end
 			Page.Window.Pages[#Page.Window.Pages + 1] = Page
 			
@@ -1199,7 +1216,8 @@ do -- Library
 				-- Создаем функцию UpdateTabs, если она отсутствует
 				Page.Window.UpdateTabs = function(self)
 					for _, PageItem in pairs(self.Pages) do
-						if PageItem.Turn then
+						-- Проверяем, что PageItem является таблицей, а не функцией
+						if type(PageItem) == "table" and PageItem.Turn then
 							PageItem:Turn(PageItem.Open)
 						end
 					end
@@ -1412,17 +1430,28 @@ do -- Library
 
 				Library:Connection(SectionName.MouseButton1Click, function()
 					if not MultiSection.Open then
-						MultiSection:Turn(true)
-						for index, other_page in pairs(SectionShit2.ActualSections) do
-							if other_page.Open and other_page ~= MultiSection then
-								other_page:Turn(false)
+						-- Проверяем, что MultiSection это таблица, а не функция, перед вызовом Turn
+						if type(MultiSection) == "table" and MultiSection.Turn then
+							MultiSection:Turn(true)
+						end
+						
+						-- Проверяем, что ActualSections существует
+						if SectionShit2.ActualSections then
+							for index, other_page in pairs(SectionShit2.ActualSections) do
+								-- Проверяем, что other_page это таблица и имеет метод Turn
+								if type(other_page) == "table" and other_page.Open and other_page ~= MultiSection and other_page.Turn then
+									other_page:Turn(false)
+								end
 							end
 						end
 					end
 				end)
 
 				if #SectionShit == 0 then
-					MultiSection:Turn(true);
+					-- Проверка типа MultiSection и наличия метода Turn
+					if type(MultiSection) == "table" and MultiSection.Turn then
+						MultiSection:Turn(true);
+					end
 				end;
 
 				
@@ -1437,7 +1466,12 @@ do -- Library
 
 			
 			Section.Page.Sections[#Section.Page.Sections + 1] = Section;
-			Section.ActualSections[1]:Turn(true)
+			
+			-- Проверка существования первой секции и метода Turn
+			if Section.ActualSections and Section.ActualSections[1] and type(Section.ActualSections[1]) == "table" and Section.ActualSections[1].Turn then
+				Section.ActualSections[1]:Turn(true)
+			end
+			
 			return table.unpack(Section.ActualSections)
 		end
 		
@@ -1559,7 +1593,11 @@ do -- Library
 				Toggle.Toggled = not Toggle.Toggled
 				TweenService:Create(Accent, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = Toggle.Toggled and 0 or 1}):Play()
 				Library.Flags[Toggle.Flag] = Toggle.Toggled
-				Toggle.Callback(Toggle.Toggled)
+				
+				-- Проверяем, что Callback это функция
+				if type(Toggle.Callback) == "function" then
+					Toggle.Callback(Toggle.Toggled)
+				end
 			end
 			
 			Library:Connection(NewToggle.MouseButton1Down, SetState)
@@ -1731,7 +1769,11 @@ do -- Library
 							if Keybind.Flag then
 								Library.Flags[Keybind.Flag] = false
 							end
-							Keybind.Callback(false)
+							
+							-- Проверяем, что Callback это функция
+							if type(Keybind.Callback) == "function" then
+								Keybind.Callback(false)
+							end
 						end
 						if tostring(newkey):find("Enum.KeyCode.") then
 							newkey = Enum.KeyCode[tostring(newkey):gsub("Enum.KeyCode.", "")]
@@ -1775,8 +1817,11 @@ do -- Library
 								if Keybind.Flag then
 									Library.Flags[Keybind.Flag] = State
 								end
+								-- Проверяем, что Callback это функция
+							if type(Keybind.Callback) == "function" then
 								Keybind.Callback(true)
-								ListValue:SetVisible(true)
+							end
+							ListValue:SetVisible(true)
 							end
 						end
 					else
@@ -1827,7 +1872,10 @@ do -- Library
 							if Keybind.Flag then
 								Library.Flags[Keybind.Flag] = State
 							end
-							Keybind.Callback(State)
+							-- Проверяем, что Callback это функция
+							if type(Keybind.Callback) == "function" then
+								Keybind.Callback(State)
+							end
 							ListValue:SetVisible(State)
 						end
 					end
@@ -2149,7 +2197,11 @@ do -- Library
 				Val = value
 
 				Library.Flags[Slider.Flag] = value
-				Slider.Callback(value)
+				
+				-- Проверяем, что Callback это функция
+				if type(Slider.Callback) == "function" then
+					Slider.Callback(value)
+				end
 			end				
 			
 			local function ISlide(input)
@@ -2438,7 +2490,11 @@ do -- Library
 						Content.Visible = false
 						NewList.ZIndex = 1
 						Library.Flags[Dropdown.Flag] = option
-						Dropdown.Callback(option)
+						
+						-- Проверяем, что Callback это функция
+						if type(Dropdown.Callback) == "function" then
+							Dropdown.Callback(option)
+						end
 					end
 				end)
 			end
@@ -3247,14 +3303,21 @@ do -- Library
 
 			
 			Value.FocusLost:Connect(function()
-				Textbox.Callback(Value.Text)
+				-- Проверяем, что Callback это функция
+				if type(Textbox.Callback) == "function" then
+					Textbox.Callback(Value.Text)
+				end
 				Library.Flags[Textbox.Flag] = Value.Text
 			end)
 			
 			local function set(str)
 				Value.Text = str
 				Library.Flags[Textbox.Flag] = str
-				Textbox.Callback(str)
+				
+				-- Проверяем, что Callback это функция
+				if type(Textbox.Callback) == "function" then
+					Textbox.Callback(str)
+				end
 			end
 
 			
@@ -3334,7 +3397,11 @@ do -- Library
 			Frame.Parent = NewButton
 			
 			Library:Connection(NewButton.MouseButton1Down, function()
-				Button.Callback()
+				-- Проверяем, что Callback это функция
+				if type(Button.Callback) == "function" then
+					Button.Callback()
+				end
+				
 				TweenService:Create(Value, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextColor3 = Library.Accent}):Play()
 				task.spawn(function()
 					task.wait(0.25)
