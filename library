@@ -4185,3 +4185,6 @@ do
 		return notification
 	end
 end
+
+-- Возвращаем библиотеку для использования через loadstring
+return Library
