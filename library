@@ -4073,6 +4073,36 @@ function Library:ShowLoadingBar(progress, maxProgress, length, fill, empty)
     print(string.format("[%s] %d%%", bar, percentage))
 end
 
--- Функция для обновления масштаба UIfunction Library:SetUIScale(scale)    if typeof(scale) ~= "number" or scale <= 0 then        warn("UI scale must be a positive number!")        return    end        self.UIScale = scale    self.FSize = math.floor(11 * scale) -- Обновляем базовый размер шрифта (база 11)        -- Обновляем масштаб всех текстовых элементов    for _, obj in pairs(self.ThemeObjects) do        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then            if obj.TextSize ~= nil then                obj.TextSize = math.floor(11 * scale)            end        end    end        -- Если есть ScreenGUI с UIScale, обновляем его    if self.Holder and self.Holder.Parent then        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")        if not uiScale then            uiScale = Instance.new("UIScale")            uiScale.Parent = self.Holder.Parent        end        uiScale.Scale = scale    end        print(string.format("UI scale set to: %.2fx", scale))end
+-- Функция для обновления масштаба UI
+function Library:SetUIScale(scale)
+    if typeof(scale) ~= "number" or scale <= 0 then
+        warn("UI scale must be a positive number!")
+        return
+    end
+    
+    self.UIScale = scale
+    self.FSize = math.floor(11 * scale) -- Обновляем базовый размер шрифта (база 11)
+    
+    -- Обновляем масштаб всех текстовых элементов
+    for _, obj in pairs(self.ThemeObjects) do
+        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
+            if obj.TextSize ~= nil then
+                obj.TextSize = math.floor(11 * scale)
+            end
+        end
+    end
+    
+    -- Если есть ScreenGUI с UIScale, обновляем его
+    if self.Holder and self.Holder.Parent then
+        local uiScale = self.Holder.Parent:FindFirstChild("UIScale")
+        if not uiScale then
+            uiScale = Instance.new("UIScale")
+            uiScale.Parent = self.Holder.Parent
+        end
+        uiScale.Scale = scale
+    end
+    
+    print(string.format("UI scale set to: %.2fx", scale))
+end
 
 return Library;
