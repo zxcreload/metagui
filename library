@@ -2298,6 +2298,11 @@ do -- Library
 			return Slider
 		end
 		
+		-- Добавляем функцию Dropdown как синоним List
+		function Sections:Dropdown(Properties)
+			return self:List(Properties)
+		end
+		
 		function Sections:List(Properties)
 			local Properties = Properties or {};
 			local Dropdown = {
