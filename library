@@ -991,7 +991,16 @@ do -- Library
 				end
 			end
 
-			Library.Holder = ImageLabel						-- Добавляем окно в таблицу Windows для отслеживания			table.insert(Library.Windows, Window)						return setmetatable(Window, Library)
+			-- Добавляем метод Page к объекту Window
+			function Window:Page(Properties)
+				return Library:Page(Properties)
+			end
+
+			Library.Holder = ImageLabel
+			-- Добавляем окно в таблицу Windows для отслеживания
+			table.insert(Library.Windows, Window)
+			
+			return setmetatable(Window, Library)
 		end;
 		
 		function Library:Page(Properties)
