@@ -262,12 +262,18 @@ do -- Library
 		
 		function Library:IsMouseOverFrame(Frame)
 			local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
-
-			if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-				and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
-
+			local scale = self.UIScale or 1
+			
+			-- Получаем позицию мыши
+			local mousePos = game:GetService("UserInputService"):GetMouseLocation()
+			
+			-- Проверяем находится ли мышь над фреймом с учетом масштабирования
+			if mousePos.X >= AbsPos.X and mousePos.X <= AbsPos.X + AbsSize.X 
+				and mousePos.Y >= AbsPos.Y and mousePos.Y <= AbsPos.Y + AbsSize.Y then
 				return true;
 			end;
+			
+			return false;
 		end;
 		
 		function Library:ChangeAccent(Color)
@@ -636,20 +642,23 @@ do -- Library
 
 	function Library:Resize(object, background)
 		local start, objectposition, dragging, currentpos, currentsize
+		local scale = self.UIScale or 1
 
 		Library:Connection(object.MouseButton1Down, function(input)
 			dragging = true
 			start = input
 		end)
-		Library:Connection(Mouse.Move, function(input)
-			if dragging then
+		
+		Library:Connection(game:GetService("UserInputService").InputChanged, function(input)
+			if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
 				local MouseLocation = game:GetService("UserInputService"):GetMouseLocation()
 				local X = math.clamp(MouseLocation.X - background.AbsolutePosition.X, 550, 9999)
 				local Y = math.clamp((MouseLocation.Y - 36) - background.AbsolutePosition.Y, 600, 9999)
-				currentsize = UDim2.new(0,X,0,Y)
+				currentsize = UDim2.new(0, X, 0, Y)
 				background.Size = currentsize
 			end;
 		end)
+		
 		Library:Connection(game:GetService("UserInputService").InputEnded, function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				dragging = false
@@ -825,18 +834,20 @@ do -- Library
 				Holder = MainFrame,
 			}
 
-			Library:Connection(MainFrame.MouseButton1Down, function()
+			-- Модифицируем логику перетаскивания с учетом масштабирования
+			Library:Connection(Window.Elements.Holder.MouseButton1Down, function()
 				local Location = game:GetService("UserInputService"):GetMouseLocation()
 				Window.Dragging[1] = true
-				Window.Dragging[2] = UDim2.new(0, Location.X - ImageLabel.AbsolutePosition.X, 0, Location.Y - ImageLabel.AbsolutePosition.Y)
+				Window.Dragging[2] = UDim2.new(0, Location.X - Window.Elements.Holder.Parent.AbsolutePosition.X, 0, Location.Y - Window.Elements.Holder.Parent.AbsolutePosition.Y)
 			end)
+			
 			Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)
 				if Input.UserInputType == Enum.UserInputType.MouseButton1 and Window.Dragging[1] then
-					local Location = game:GetService("UserInputService"):GetMouseLocation()
 					Window.Dragging[1] = false
 					Window.Dragging[2] = UDim2.new(0, 0, 0, 0)
 				end
 			end)
+			
 			Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)
 				local Location = game:GetService("UserInputService"):GetMouseLocation()
 				local ActualLocation = nil
@@ -4100,8 +4111,10 @@ function Library:SetUIScale(scale)
     
     -- Обновляем масштаб всех текстовых элементов
     for _, obj in pairs(self.ThemeObjects) do
-        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
-            obj.TextSize = obj.TextSize * scale
+        if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
+            if obj.TextSize ~= nil then
+                obj.TextSize = math.floor(10 * scale)
+            end
         end
     end
     
