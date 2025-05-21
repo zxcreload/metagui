@@ -4445,8 +4445,10 @@ do
 		function Library:Indicator(Properties)
 			local Indicator = {
 				Title = Properties.Name or Properties.name or "New Indicator";
-				Elements = {};
+				Elements = {}; -- храним UI элементы
+				Values = {}; -- храним объекты значений для методов
 				Dragging = { false, UDim2.new(0, 0, 0, 0) };
+				Visible = false; -- отслеживаем состояние видимости
 			};
 			--
 			local Outline = Instance.new("TextButton")
@@ -4461,6 +4463,7 @@ do
 			Outline.Visible = false
 			Outline.Text = ""
 			Outline.AutoButtonColor = false
+			Outline.ZIndex = 10000
 
 			local Inline = Instance.new("Frame")
 			Inline.Name = "Inline"
@@ -4469,6 +4472,7 @@ do
 			Inline.BorderSizePixel = 0
 			Inline.Position = UDim2.new(0, 1, 0, 1)
 			Inline.Size = UDim2.new(1, -2, 1, -2)
+			Inline.ZIndex = 10000
 
 			local Value = Instance.new("TextLabel")
 			Value.Name = "Value"
@@ -4483,6 +4487,7 @@ do
 			Value.BorderSizePixel = 0
 			Value.Position = UDim2.new(0, 0, 0, 2)
 			Value.Size = UDim2.new(1, 0, 0, 15)
+			Value.ZIndex = 10000
 			Value.Parent = Inline
 
 			local HolderOutline = Instance.new("Frame")
@@ -4492,6 +4497,7 @@ do
 			HolderOutline.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			HolderOutline.Position = UDim2.new(0, 6, 0, 22)
 			HolderOutline.Size = UDim2.new(1, -12, 0, 0)
+			HolderOutline.ZIndex = 10000
 
 			local HolderInline = Instance.new("Frame")
 			HolderInline.Name = "HolderInline"
@@ -4500,6 +4506,7 @@ do
 			HolderInline.BorderSizePixel = 0
 			HolderInline.Position = UDim2.new(0, 1, 0, 1)
 			HolderInline.Size = UDim2.new(1, -2, 1, -2)
+			HolderInline.ZIndex = 10000
 
 			local UIListLayout = Instance.new("UIListLayout")
 			UIListLayout.Name = "UIListLayout"
@@ -4530,6 +4537,7 @@ do
 			Accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			Accent.BorderSizePixel = 0
 			Accent.Size = UDim2.new(1, 0, 0, 1)
+			Accent.ZIndex = 10000
 			Accent.Parent = Outline
 			
 			-- // Dragging
@@ -4562,7 +4570,13 @@ do
 			
 			-- // Functions
 			function Indicator:SetVisible(State)
+				self.Visible = State
 				Outline.Visible = State
+				
+				-- Если индикатор скрыт, очищаем элементы (для исправления проблемы)
+				if not State then
+					self:ClearAll()
+				end
 			end
 			
 			function Indicator:UpdateText(Text)
@@ -4585,19 +4599,67 @@ do
 				end
 			end
 			
+			-- Функция для очистки всех элементов индикатора
+			function Indicator:ClearAll()
+				-- Удаляем все элементы UI
+				for key, element in pairs(self.Elements) do
+					if element and element.Parent then
+						element:Destroy()
+					end
+				end
+				
+				-- Очищаем таблицы с сохраненными элементами
+				self.Elements = {}
+				self.Values = {}
+			end
+			
+			-- Функция для скрытия/отображения элемента
+			function Indicator:SetElementVisible(key, visible)
+				if self.Elements[key] then
+					self.Elements[key].Visible = visible
+				end
+			end
+			
+			-- Функция для удаления отдельного элемента
+			function Indicator:RemoveElement(key)
+				if self.Elements[key] then
+					self.Elements[key]:Destroy()
+					self.Elements[key] = nil
+					self.Values[key] = nil
+				end
+			end
+			
+			-- Функция для проверки существования элемента
+			function Indicator:HasElement(key)
+				return self.Elements[key] ~= nil
+			end
+			
 			function Indicator:NewValue(Properties)
+				-- Безопасно обрабатываем свойства
+				local props = Properties or {}
+				local elementKey = props.Key or props.key or props.Name or props.name or "value_" .. tostring(#self.Elements + 1)
+				
+				-- Удаляем существующий элемент с таким же ключом, если он есть
+				if self:HasElement(elementKey) then
+					self:RemoveElement(elementKey)
+				end
+				
 				local NewIndicator = {
-					Name = Properties.Name or Properties.name or "New Value";
-					Value = Properties.Value or Properties.value or "false";
+					Name = props.Name or props.name or "New Value";
+					Value = props.Value or props.value or "";
+					Key = elementKey;
+					ParentIndicator = self; -- Ссылка на родительский индикатор
 				};
-				--
+				
+				-- Создаем UI элемент
 				local NewInd = Instance.new("Frame")
-				NewInd.Name = "NewInd"
+				NewInd.Name = "NewInd_" .. elementKey
 				NewInd.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 				NewInd.BackgroundTransparency = 1
 				NewInd.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				NewInd.BorderSizePixel = 0
 				NewInd.Size = UDim2.new(1, 0, 0, 15)
+				NewInd.ZIndex = 10000
 
 				local Title = Instance.new("TextLabel")
 				Title.Name = "Title"
@@ -4613,6 +4675,7 @@ do
 				Title.BorderSizePixel = 0
 				Title.Position = UDim2.new(0, 4, 0, 0)
 				Title.Size = UDim2.new(1, 0, 1, 0)
+				Title.ZIndex = 10000
 				Title.Parent = NewInd
 
 				local IndValue = Instance.new("TextLabel")
@@ -4629,34 +4692,90 @@ do
 				IndValue.BorderSizePixel = 0
 				IndValue.Position = UDim2.new(0, -4, 0, 0)
 				IndValue.Size = UDim2.new(1, 0, 1, 0)
+				IndValue.ZIndex = 10000
 				IndValue.Parent = NewInd
 
+				-- Добавляем в родительский контейнер
 				NewInd.Parent = HolderInline
 				
-				-- // Functions
+				-- Сохраняем элемент в таблицы для дальнейшего доступа
+				self.Elements[elementKey] = NewInd
+				
+				-- Функция для обновления значения
 				function NewIndicator:UpdateValue(NewValue)
-					IndValue.Text = tostring(NewValue)
+					-- Проверяем, существует ли еще элемент
+					if not IndValue or not IndValue.Parent then
+						return
+					end
+					
+					-- Обновляем текст
+					local success, err = pcall(function()
+						IndValue.Text = tostring(NewValue)
+					end)
+					
+					-- Если произошла ошибка, выводим предупреждение
+					if not success then
+						warn("Не удалось обновить значение индикатора: " .. tostring(err))
+					end
 				end
+				
+				-- Функция для скрытия/отображения этого элемента
+				function NewIndicator:SetVisible(visible)
+					self.ParentIndicator:SetElementVisible(self.Key, visible)
+				end
+				
+				-- Функция для удаления этого элемента
+				function NewIndicator:Remove()
+					self.ParentIndicator:RemoveElement(self.Key)
+				end
+				
+				-- Сохраняем объект для обновления значения
+				self.Values[elementKey] = NewIndicator
 				
 				return NewIndicator
 			end
-			--
+			
+			-- Функция для получения элемента по ключу
+			function Indicator:GetElement(key)
+				return self.Values[key]
+			end
+			
+			-- Функция для безопасного обновления значений
+			function Indicator:SafeUpdateValue(key, value)
+				local element = self:GetElement(key)
+				if element then
+					pcall(function()
+						element:UpdateValue(value)
+					end)
+				end
+			end
+			
+			-- Сохраняем старые методы для обратной совместимости
 			function Indicator:NewBar(Properties)
 				local NewBarInd = {
 					Name = Properties.Name or Properties.name or "New Value";
 					Min = (Properties.min or Properties.Min or Properties.minimum or Properties.Minimum or 0);
 					Max = (Properties.max or Properties.Max or Properties.maximum or Properties.Maximum or 100);
 					State = (Properties.state or Properties.State or Properties.def or Properties.Def or Properties.default or Properties.Default or 0);
+					Key = Properties.Key or Properties.key or "bar_" .. tostring(#self.Elements + 1);
+					ParentIndicator = self;
 				};
+				
+				-- Удаляем существующий элемент с таким же ключом, если он есть
+				if self:HasElement(NewBarInd.Key) then
+					self:RemoveElement(NewBarInd.Key)
+				end
+				
 				local TextValue = ("[value]")
 				--
 				local NewBar = Instance.new("Frame")
-				NewBar.Name = "NewBar"
+				NewBar.Name = "NewBar_" .. NewBarInd.Key
 				NewBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 				NewBar.BackgroundTransparency = 1
 				NewBar.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				NewBar.BorderSizePixel = 0
 				NewBar.Size = UDim2.new(1, 0, 0, 25)
+				NewBar.ZIndex = 10000
 
 				local Title1 = Instance.new("TextLabel")
 				Title1.Name = "Title"
@@ -4672,6 +4791,7 @@ do
 				Title1.BorderSizePixel = 0
 				Title1.Position = UDim2.new(0, 4, 0, 0)
 				Title1.Size = UDim2.new(1, 0, 0, 15)
+				Title1.ZIndex = 10000
 				Title1.Parent = NewBar
 
 				local IndValue1 = Instance.new("TextLabel")
@@ -4688,40 +4808,69 @@ do
 				IndValue1.BorderSizePixel = 0
 				IndValue1.Position = UDim2.new(0, -4, 0, 0)
 				IndValue1.Size = UDim2.new(1, 0, 0, 15)
+				IndValue1.ZIndex = 10000
 				IndValue1.Parent = NewBar
 
 				local BarOutline = Instance.new("Frame")
 				BarOutline.Name = "BarOutline"
-				BarOutline.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+				BarOutline.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 				BarOutline.BorderColor3 = Color3.fromRGB(0, 0, 0)
-				BarOutline.Position = UDim2.new(0, 4, 1, -6)
-				BarOutline.Size = UDim2.new(1, -8, 0, 6)
+				BarOutline.Position = UDim2.new(0, 4, 0, 17)
+				BarOutline.Size = UDim2.new(1, -8, 0, 8)
+				BarOutline.ZIndex = 10000
+				BarOutline.Parent = NewBar
+
+				local BarInline = Instance.new("Frame")
+				BarInline.Name = "BarInline"
+				BarInline.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+				BarInline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+				BarInline.BorderSizePixel = 0
+				BarInline.Position = UDim2.new(0, 1, 0, 1)
+				BarInline.Size = UDim2.new(1, -2, 1, -2)
+				BarInline.ZIndex = 10000
+				BarInline.Parent = BarOutline
 
 				local Bar = Library:NewInstance("Frame", true)
 				Bar.Name = "Bar"
 				Bar.BackgroundColor3 = Library.Accent
 				Bar.BorderColor3 = Color3.fromRGB(0, 0, 0)
 				Bar.BorderSizePixel = 0
-				Bar.Size = UDim2.new(0.5, 0, 1, 0)
-				Bar.Parent = BarOutline
-
-				BarOutline.Parent = NewBar
+				Bar.Size = UDim2.new(0, 0, 1, 0)
+				Bar.ZIndex = 10000
+				Bar.Parent = BarInline
 
 				NewBar.Parent = HolderInline
-
+				
+				-- Сохраняем элемент в таблицы для дальнейшего доступа
+				self.Elements[NewBarInd.Key] = NewBar
+				
 				-- // Functions
 				function NewBarInd:UpdateValue(NewValue)
-					NewValue = math.clamp(Library:Round(NewValue, 1), NewBarInd.Min, NewBarInd.Max)
-					local sizeX = ((NewValue - NewBarInd.Min) / (NewBarInd.Max - NewBarInd.Min))
-					Bar.Size = UDim2.new(sizeX, 0, 1, 0)
-					IndValue1.Text = TextValue:gsub("%[value%]", string.format("%.14g", NewValue))
+					NewValue = math.clamp(NewValue, NewBarInd.Min, NewBarInd.Max)
+					local Percent = (NewValue - NewBarInd.Min) / (NewBarInd.Max - NewBarInd.Min)
+					
+					Bar.Size = UDim2.new(Percent, 0, 1, 0)
+					IndValue1.Text = tostring(math.floor(NewValue))
 				end
 				
+				-- Функция для удаления этого элемента
+				function NewBarInd:Remove()
+					self.ParentIndicator:RemoveElement(self.Key)
+				end
+				
+				-- Функция для скрытия/отображения этого элемента
+				function NewBarInd:SetVisible(visible)
+					self.ParentIndicator:SetElementVisible(self.Key, visible)
+				end
+				
+				-- Сохраняем объект для обновления значения
+				self.Values[NewBarInd.Key] = NewBarInd
+				
+				-- Setting
 				NewBarInd:UpdateValue(NewBarInd.State)
-
+				
 				return NewBarInd
 			end
-			--
 			
 			return Indicator
 		end
