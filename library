@@ -336,11 +336,6 @@ do
 		
 		-- Удаление конфигурации
 		function Library:DeleteConfig(name)
-			-- Нельзя удалить Default
-			if name == "Default" then
-				return false
-			end
-			
 			-- В реальном сценарии здесь был бы код для удаления файла
 			local success, err = pcall(function()
 				delfile("configs/" .. name .. ".cfg")
@@ -359,8 +354,10 @@ do
 				end
 			end
 			
-			-- Переключаемся на Default, чтобы избежать проблем с удаленной конфигурацией
-			self.Flags["SelectedConfig"] = "Default"
+			-- Сбрасываем выбор если удаляем текущую конфигурацию
+			if self.Flags["SelectedConfig"] == name then
+				self.Flags["SelectedConfig"] = self.ConfigList[1] or ""
+			end
 			
 			-- Перезагружаем полный список конфигураций
 			self:LoadAllConfigs()
@@ -393,12 +390,12 @@ do
 						end
 						
 						-- Определяем текущую выбранную конфигурацию
-						local current = self.Flags["SelectedConfig"] or "Default"
+						local current = self.Flags["SelectedConfig"] or ""
 						
-						-- Если текущей конфигурации нет в списке, выбираем первую
-						if not table.find(self.ConfigList, current) then
-							if self.ConfigElements.Dropdown.Set then
-								self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
+						-- Если текущей конфигурации нет в списке или она пустая, выбираем первую при наличии
+						if current == "" or not table.find(self.ConfigList, current) then
+							if #self.ConfigList > 0 and self.ConfigElements.Dropdown.Set then
+								self.ConfigElements.Dropdown:Set(self.ConfigList[1])
 							end
 						else
 							-- Если текущая конфигурация есть в списке, переустанавливаем её
@@ -414,7 +411,7 @@ do
 		-- Создание UI для конфиг-менеджера
 		function Library:SetupConfigManager(page)
 			-- Убедимся, что список конфигураций загружен
-			if not self.ConfigList or #self.ConfigList == 0 then
+			if not self.ConfigList then
 				self:LoadAllConfigs()
 			end
 			
@@ -431,7 +428,6 @@ do
 				self.ConfigElements.Dropdown = section:List({
 					Name = "Configurations",
 					Options = self.ConfigList,
-					Default = "Default",
 					Flag = "SelectedConfig"
 				})
 				
@@ -453,6 +449,12 @@ do
 							return
 						end
 						
+						-- Проверяем на недопустимые символы в имени файла
+						if newName:match("[\\/:*?\"<>|]") then
+							self:Notification("Name contains invalid characters", 2)
+							return
+						end
+						
 						if table.find(self.ConfigList, newName) then
 							self:Notification("Configuration already exists", 2)
 							return
@@ -460,6 +462,10 @@ do
 						
 						if self:SaveConfig(newName) then
 							self:Notification("Configuration created", 2)
+							
+							-- Автоматически выбираем новую конфигурацию
+							self.Flags["SelectedConfig"] = newName
+							self:UpdateConfigUI()
 						end
 					end
 				})
@@ -471,12 +477,37 @@ do
 						local selected = self.Flags["SelectedConfig"]
 						
 						if not selected or selected == "" then
-							self:Notification("Select a configuration", 2)
-							return
-						end
-						
-						if self:SaveConfig(selected) then
-							self:Notification("Configuration updated", 2)
+							-- Если нет выбранной конфигурации, создаем новую
+							local newName = self.Flags["NewConfigName"]
+							
+							if not newName or newName == "" then
+								self:Notification("Enter configuration name", 2)
+								return
+							end
+							
+							-- Проверяем на недопустимые символы в имени файла
+							if newName:match("[\\/:*?\"<>|]") then
+								self:Notification("Name contains invalid characters", 2)
+								return
+							end
+							
+							if table.find(self.ConfigList, newName) then
+								self:Notification("Configuration already exists", 2)
+								return
+							end
+							
+							if self:SaveConfig(newName) then
+								self:Notification("Configuration created", 2)
+								
+								-- Автоматически выбираем новую конфигурацию
+								self.Flags["SelectedConfig"] = newName
+								self:UpdateConfigUI()
+							end
+						else
+							-- Сохраняем существующую конфигурацию
+							if self:SaveConfig(selected) then
+								self:Notification("Configuration updated", 2)
+							end
 						end
 					end
 				})
@@ -489,6 +520,16 @@ do
 						
 						if not selected or selected == "" then
 							self:Notification("Select a configuration", 2)
+							return
+						end
+						
+						-- Проверяем существование файла конфигурации
+						local success, exists = pcall(function()
+							return isfile("configs/" .. selected .. ".cfg")
+						end)
+						
+						if not success or not exists then
+							self:Notification("Configuration not found", 2)
 							return
 						end
 						
@@ -506,11 +547,6 @@ do
 						
 						if not selected or selected == "" then
 							self:Notification("Select a configuration", 2)
-							return
-						end
-						
-						if selected == "Default" then
-							self:Notification("Cannot delete Default", 2)
 							return
 						end
 						
@@ -538,10 +574,18 @@ do
 				return listfiles("configs")
 			end)
 			
-			-- Начинаем всегда с Default
-			local configList = {"Default"}
+			-- Список будет содержать только пользовательские конфигурации
+			local configList = {}
 			
 			if success and files then
+				-- Сортируем список файлов по имени
+				table.sort(files, function(a, b)
+					-- Извлекаем только имена файлов для сравнения
+					local nameA = a:match("([^/\\]+)%.cfg$") or ""
+					local nameB = b:match("([^/\\]+)%.cfg$") or ""
+					return nameA:lower() < nameB:lower()
+				end)
+				
 				for _, filePath in ipairs(files) do
 					-- Извлекаем имя файла без расширения .cfg
 					local fileName = filePath:match("([^/\\]+)%.cfg$")
@@ -551,11 +595,30 @@ do
 				end
 			end
 			
+			-- Сохраняем текущий выбор перед обновлением, если он есть
+			local currentSelection = self.Flags and self.Flags["SelectedConfig"]
+			
 			-- Всегда обновляем список, даже если произошла ошибка
 			self.ConfigList = configList
 			
 			-- Обновляем UI если ConfigManager уже создан
 			if self.ConfigManager then
+				-- Проверяем, существует ли текущий выбор в новом списке
+				local selectionExists = false
+				if currentSelection and currentSelection ~= "" then
+					for _, cfg in ipairs(configList) do
+						if cfg == currentSelection then
+							selectionExists = true
+							break
+						end
+					end
+				end
+				
+				-- Если текущий выбор не существует, сбрасываем его
+				if not selectionExists and self.Flags then
+					self.Flags["SelectedConfig"] = configList[1] or ""
+				end
+				
 				self:UpdateConfigUI()
 			end
 			
@@ -2746,17 +2809,19 @@ do
 				-- Создаем новые опции на основе обновленного списка
 				createoptions(tbl)
 				
-				-- Сбрасываем выбранное значение
-				if Dropdown.Max then
-					table.clear(chosen)
-				else
-					chosen = nil
-					Value.Text = "None"
+				-- Сбрасываем выбранное значение только если в списке нет опций
+				if #tbl == 0 then
+					if Dropdown.Max then
+						table.clear(chosen)
+					else
+						chosen = nil
+						Value.Text = "None"
+					end
+					
+					-- Обновляем флаг и вызываем обратный вызов
+					Library.Flags[Dropdown.Flag] = chosen
+					Dropdown.Callback(chosen)
 				end
-				
-				-- Обновляем флаг и вызываем обратный вызов
-				Library.Flags[Dropdown.Flag] = chosen
-				Dropdown.Callback(chosen)
 			end
 
 			-- // Returning
@@ -3038,17 +3103,19 @@ do
 				-- Создаем новые опции на основе обновленного списка
 				createoptions(tbl)
 				
-				-- Сбрасываем выбранное значение
-				if Dropdown.Max then
-					table.clear(chosen)
-				else
-					chosen = nil
-					Value.Text = "None"
+				-- Сбрасываем выбранное значение только если в списке нет опций
+				if #tbl == 0 then
+					if Dropdown.Max then
+						table.clear(chosen)
+					else
+						chosen = nil
+						Value.Text = "None"
+					end
+					
+					-- Обновляем флаг и вызываем обратный вызов
+					Library.Flags[Dropdown.Flag] = chosen
+					Dropdown.Callback(chosen)
 				end
-				
-				-- Обновляем флаг и вызываем обратный вызов
-				Library.Flags[Dropdown.Flag] = chosen
-				Dropdown.Callback(chosen)
 			end
 
 			-- // Returning
