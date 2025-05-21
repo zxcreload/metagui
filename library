@@ -4322,5 +4322,5 @@ for i,v in next, game.Players.LocalPlayer.Character:GetChildren() do
 	end 
 end
 
--- ВАЖНО: Возвращаем библиотеку для использования через loadstring
+-- Возвращаем библиотеку для использования через loadstring
 return Library
