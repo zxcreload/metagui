@@ -74,6 +74,9 @@ do
 		Priorities = {};
 		KeyList = nil;
 		Notifs = {};
+		ConfigList = {"Default"}; -- Список конфигураций
+		ConfigManager = nil; -- Секция для конфиг-менеджера
+		ConfigElements = {}; -- Элементы UI конфиг-менеджера
 	}
 
 	-- // Ignores
@@ -279,6 +282,228 @@ do
 					dragging = false
 				end
 			end)
+		end
+
+		-- Добавление новых функций для работы с конфигурациями
+		
+		-- Сохранение конфигурации
+		function Library:SaveConfig(name)
+			local configStr = self:GetConfig()
+			
+			-- В реальном сценарии здесь был бы код для сохранения в файл
+			local success, err = pcall(function()
+				writefile("configs/" .. name .. ".cfg", configStr)
+			end)
+			
+			if not success then
+				warn("Ошибка при сохранении конфигурации:", err)
+				return false
+			end
+			
+			-- Добавляем в список, если его там нет
+			if not table.find(self.ConfigList, name) then
+				table.insert(self.ConfigList, name)
+				-- Обновляем UI, если он создан
+				self:UpdateConfigUI()
+			end
+			
+			return true
+		end
+		
+		-- Загрузка конфигурации
+		function Library:LoadConfigByName(name)
+			-- В реальном сценарии здесь был бы код для чтения из файла
+			local success, content = pcall(function()
+				return readfile("configs/" .. name .. ".cfg")
+			end)
+			
+			if not success then
+				warn("Ошибка при загрузке конфигурации:", content)
+				return false
+			end
+			
+			self:LoadConfig(content)
+			return true
+		end
+		
+		-- Удаление конфигурации
+		function Library:DeleteConfig(name)
+			-- Нельзя удалить Default
+			if name == "Default" then
+				return false
+			end
+			
+			-- В реальном сценарии здесь был бы код для удаления файла
+			local success, err = pcall(function()
+				delfile("configs/" .. name .. ".cfg")
+			end)
+			
+			if not success then
+				warn("Ошибка при удалении конфигурации:", err)
+				return false
+			end
+			
+			-- Удаляем из списка
+			for i, configName in ipairs(self.ConfigList) do
+				if configName == name then
+					table.remove(self.ConfigList, i)
+					break
+				end
+			end
+			
+			-- Обновляем UI, если он создан
+			self:UpdateConfigUI()
+			
+			return true
+		end
+		
+		-- Обновление UI конфиг-менеджера
+		function Library:UpdateConfigUI()
+			if self.ConfigElements.Dropdown then
+				self.ConfigElements.Dropdown:Refresh(self.ConfigList)
+				-- Обновляем выбранную конфигурацию на первую в списке, если текущей нет в списке
+				local current = self.Flags["SelectedConfig"] or "Default"
+				if not table.find(self.ConfigList, current) then
+					self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
+				end
+			end
+		end
+		
+		-- Создание UI для конфиг-менеджера
+		function Library:SetupConfigManager(page)
+			-- Создаем секцию для конфиг-менеджера, если еще не создана
+			if not self.ConfigManager then
+				local section = page:Section({
+					Name = "Управление конфигурациями",
+					Side = "left"
+				})
+				
+				self.ConfigManager = section
+				
+				-- Dropdown для выбора конфигурации
+				self.ConfigElements.Dropdown = section:List({
+					Name = "Конфигурации",
+					Options = self.ConfigList,
+					Default = "Default",
+					Flag = "SelectedConfig"
+				})
+				
+				-- Текстовое поле для имени новой конфигурации
+				self.ConfigElements.Textbox = section:Textbox({
+					Name = "Имя конфигурации",
+					Placeholder = "Введите имя...",
+					Flag = "NewConfigName"
+				})
+				
+				-- Кнопка для создания новой конфигурации
+				section:Button({
+					Name = "Создать",
+					Callback = function()
+						local newName = self.Flags["NewConfigName"]
+						
+						if not newName or newName == "" then
+							self:Notification("Введите имя конфигурации", 2)
+							return
+						end
+						
+						if table.find(self.ConfigList, newName) then
+							self:Notification("Конфигурация уже существует", 2)
+							return
+						end
+						
+						if self:SaveConfig(newName) then
+							self:Notification("Конфигурация создана", 2)
+						end
+					end
+				})
+				
+				-- Кнопка для сохранения конфигурации
+				section:Button({
+					Name = "Сохранить",
+					Callback = function()
+						local selected = self.Flags["SelectedConfig"]
+						
+						if not selected or selected == "" then
+							self:Notification("Выберите конфигурацию", 2)
+							return
+						end
+						
+						if self:SaveConfig(selected) then
+							self:Notification("Конфигурация обновлена", 2)
+						end
+					end
+				})
+				
+				-- Кнопка для загрузки конфигурации
+				section:Button({
+					Name = "Загрузить",
+					Callback = function()
+						local selected = self.Flags["SelectedConfig"]
+						
+						if not selected or selected == "" then
+							self:Notification("Выберите конфигурацию", 2)
+							return
+						end
+						
+						if self:LoadConfigByName(selected) then
+							self:Notification("Конфигурация загружена", 2)
+						end
+					end
+				})
+				
+				-- Кнопка для удаления конфигурации
+				section:Button({
+					Name = "Удалить",
+					Callback = function()
+						local selected = self.Flags["SelectedConfig"]
+						
+						if not selected or selected == "" then
+							self:Notification("Выберите конфигурацию", 2)
+							return
+						end
+						
+						if selected == "Default" then
+							self:Notification("Нельзя удалить Default", 2)
+							return
+						end
+						
+						if self:DeleteConfig(selected) then
+							self:Notification("Конфигурация удалена", 2)
+						end
+					end
+				})
+			end
+			
+			return self.ConfigManager
+		end
+		
+		-- Функция для загрузки всех доступных конфигураций
+		function Library:LoadAllConfigs()
+			-- Проверяем наличие папки configs, если её нет - создаем
+			pcall(function()
+				if not isfolder("configs") then
+					makefolder("configs")
+				end
+			end)
+			
+			-- Попытка загрузить список конфигураций из папки
+			local success, files = pcall(function()
+				return listfiles("configs")
+			end)
+			
+			if success and files then
+				local configList = {"Default"}
+				
+				for _, filePath in ipairs(files) do
+					-- Извлекаем имя файла без расширения .cfg
+					local fileName = filePath:match("([^/\\]+)%.cfg$")
+					if fileName then
+						table.insert(configList, fileName)
+					end
+				end
+				
+				self.ConfigList = configList
+			end
 		end
 	end;
 
