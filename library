@@ -292,14 +292,14 @@ do
 			
 			-- Проверяем наличие папки configs, если её нет - создаем
 			pcall(function()
-				if not isfolder("configs") then
-					makefolder("configs")
+				if not isfolder("full.skid") then
+					makefolder("full.skid")
 				end
 			end)
 			
 			-- В реальном сценарии здесь был бы код для сохранения в файл
 			local success, err = pcall(function()
-				writefile("configs/" .. name .. ".cfg", configStr)
+				writefile("full.skid/" .. name .. ".cfg", configStr)
 			end)
 			
 			if not success then
@@ -322,7 +322,7 @@ do
 		function Library:LoadConfigByName(name)
 			-- В реальном сценарии здесь был бы код для чтения из файла
 			local success, content = pcall(function()
-				return readfile("configs/" .. name .. ".cfg")
+				return readfile("full.skid/" .. name .. ".cfg")
 			end)
 			
 			if not success then
@@ -338,7 +338,7 @@ do
 		function Library:DeleteConfig(name)
 			-- В реальном сценарии здесь был бы код для удаления файла
 			local success, err = pcall(function()
-				delfile("configs/" .. name .. ".cfg")
+				delfile("full.skid/" .. name .. ".cfg")
 			end)
 			
 			if not success then
@@ -525,7 +525,7 @@ do
 						
 						-- Проверяем существование файла конфигурации
 						local success, exists = pcall(function()
-							return isfile("configs/" .. selected .. ".cfg")
+							return isfile("full.skid/" .. selected .. ".cfg")
 						end)
 						
 						if not success or not exists then
@@ -564,14 +564,14 @@ do
 		function Library:LoadAllConfigs()
 			-- Проверяем наличие папки configs, если её нет - создаем
 			pcall(function()
-				if not isfolder("configs") then
-					makefolder("configs")
+				if not isfolder("full.skid") then
+					makefolder("full.skid")
 				end
 			end)
 			
 			-- Попытка загрузить список конфигураций из папки
 			local success, files = pcall(function()
-				return listfiles("configs")
+				return listfiles("full.skid")
 			end)
 			
 			-- Список будет содержать только пользовательские конфигурации
