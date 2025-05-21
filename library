@@ -1554,15 +1554,7 @@ do
 				Outline.Visible = State;
 			end;
 			
-			function Watermark:SetPosition(Position, CustomPosition, CustomAnchor)
-	-- Если переданы произвольные параметры позиции, используем их
-	if CustomPosition and CustomAnchor then
-		Outline.Position = CustomPosition
-		Outline.AnchorPoint = CustomAnchor
-		return
-	end
-				
-	-- Иначе используем предопределенные позиции
+			function Watermark:SetPosition(Position)
 	if Position == "left" then
 		Outline.Position = UDim2.new(0.01, 0, 0.02, 0)
 		Outline.AnchorPoint = Vector2.new(0, 0)
@@ -1570,10 +1562,10 @@ do
 		Outline.Position = UDim2.new(0.99, 0, 0.02, 0)
 		Outline.AnchorPoint = Vector2.new(1, 0)
 	elseif Position == "bot" then
-		Outline.Position = UDim2.new(0.5, 0, 0.95, 0)
+		Outline.Position = UDim2.new(0.5, 0, 0.98, 0)
 		Outline.AnchorPoint = Vector2.new(0.5, 1)
 	elseif Position == "top" then
-		Outline.Position = UDim2.new(0.5, 0, 0.01, 0)
+		Outline.Position = UDim2.new(0.5, 0, 0.02, 0)
 		Outline.AnchorPoint = Vector2.new(0.5, 0)
 	end
 			end
