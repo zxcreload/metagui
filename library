@@ -290,6 +290,13 @@ do
 		function Library:SaveConfig(name)
 			local configStr = self:GetConfig()
 			
+			-- Проверяем наличие папки configs, если её нет - создаем
+			pcall(function()
+				if not isfolder("configs") then
+					makefolder("configs")
+				end
+			end)
+			
 			-- В реальном сценарии здесь был бы код для сохранения в файл
 			local success, err = pcall(function()
 				writefile("configs/" .. name .. ".cfg", configStr)
@@ -303,9 +310,10 @@ do
 			-- Добавляем в список, если его там нет
 			if not table.find(self.ConfigList, name) then
 				table.insert(self.ConfigList, name)
-				-- Обновляем UI, если он создан
-				self:UpdateConfigUI()
 			end
+			
+			-- Всегда обновляем UI после сохранения
+			self:UpdateConfigUI()
 			
 			return true
 		end
@@ -351,7 +359,8 @@ do
 				end
 			end
 			
-			-- Обновляем UI, если он создан
+			-- После удаления обновляем UI и перезагружаем список конфигураций
+			self:LoadAllConfigs()
 			self:UpdateConfigUI()
 			
 			return true
@@ -360,17 +369,24 @@ do
 		-- Обновление UI конфиг-менеджера
 		function Library:UpdateConfigUI()
 			if self.ConfigElements.Dropdown then
-				-- Безопасно вызываем метод Refresh, чтобы избежать ошибок
+				-- Сначала полностью обновляем список опций в Dropdown
 				pcall(function()
 					if self.ConfigElements.Dropdown.Refresh then
+						-- Обновляем Options список перед вызовом Refresh
+						self.ConfigElements.Dropdown.Options = self.ConfigList
 						self.ConfigElements.Dropdown:Refresh(self.ConfigList)
-					end
-					
-					-- Обновляем выбранную конфигурацию на первую в списке, если текущей нет в списке
-					local current = self.Flags["SelectedConfig"] or "Default"
-					if not table.find(self.ConfigList, current) then
-						if self.ConfigElements.Dropdown.Set then
-							self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
+						
+						-- Обновляем выбранную конфигурацию на первую в списке, если текущей нет в списке
+						local current = self.Flags["SelectedConfig"] or "Default"
+						if not table.find(self.ConfigList, current) then
+							if self.ConfigElements.Dropdown.Set then
+								self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
+							end
+						else
+							-- Если текущий выбор всё ещё в списке, проверим его визуально
+							if self.ConfigElements.Dropdown.Set then
+								self.ConfigElements.Dropdown:Set(current)
+							end
 						end
 					end
 				end)
@@ -379,6 +395,11 @@ do
 		
 		-- Создание UI для конфиг-менеджера
 		function Library:SetupConfigManager(page)
+			-- Убедимся, что список конфигураций загружен
+			if not self.ConfigList or #self.ConfigList == 0 then
+				self:LoadAllConfigs()
+			end
+			
 			-- Создаем секцию для конфиг-менеджера, если еще не создана
 			if not self.ConfigManager then
 				local section = page:Section({
@@ -499,9 +520,10 @@ do
 				return listfiles("configs")
 			end)
 			
+			-- Начинаем всегда с Default
+			local configList = {"Default"}
+			
 			if success and files then
-				local configList = {"Default"}
-				
 				for _, filePath in ipairs(files) do
 					-- Извлекаем имя файла без расширения .cfg
 					local fileName = filePath:match("([^/\\]+)%.cfg$")
@@ -509,9 +531,17 @@ do
 						table.insert(configList, fileName)
 					end
 				end
-				
-				self.ConfigList = configList
 			end
+			
+			-- Всегда обновляем список, даже если произошла ошибка
+			self.ConfigList = configList
+			
+			-- Обновляем UI если ConfigManager уже создан
+			if self.ConfigManager then
+				self:UpdateConfigUI()
+			end
+			
+			return configList
 		end
 	end;
 
