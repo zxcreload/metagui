@@ -360,12 +360,20 @@ do
 		-- Обновление UI конфиг-менеджера
 		function Library:UpdateConfigUI()
 			if self.ConfigElements.Dropdown then
-				self.ConfigElements.Dropdown:Refresh(self.ConfigList)
-				-- Обновляем выбранную конфигурацию на первую в списке, если текущей нет в списке
-				local current = self.Flags["SelectedConfig"] or "Default"
-				if not table.find(self.ConfigList, current) then
-					self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
-				end
+				-- Безопасно вызываем метод Refresh, чтобы избежать ошибок
+				pcall(function()
+					if self.ConfigElements.Dropdown.Refresh then
+						self.ConfigElements.Dropdown:Refresh(self.ConfigList)
+					end
+					
+					-- Обновляем выбранную конфигурацию на первую в списке, если текущей нет в списке
+					local current = self.Flags["SelectedConfig"] or "Default"
+					if not table.find(self.ConfigList, current) then
+						if self.ConfigElements.Dropdown.Set then
+							self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
+						end
+					end
+				end)
 			end
 		end
 		
@@ -374,7 +382,7 @@ do
 			-- Создаем секцию для конфиг-менеджера, если еще не создана
 			if not self.ConfigManager then
 				local section = page:Section({
-					Name = "Управление конфигурациями",
+					Name = "Configuration Manager",
 					Side = "left"
 				})
 				
@@ -382,7 +390,7 @@ do
 				
 				-- Dropdown для выбора конфигурации
 				self.ConfigElements.Dropdown = section:List({
-					Name = "Конфигурации",
+					Name = "Configurations",
 					Options = self.ConfigList,
 					Default = "Default",
 					Flag = "SelectedConfig"
@@ -390,85 +398,85 @@ do
 				
 				-- Текстовое поле для имени новой конфигурации
 				self.ConfigElements.Textbox = section:Textbox({
-					Name = "Имя конфигурации",
-					Placeholder = "Введите имя...",
+					Name = "Config Name",
+					Placeholder = "Enter name...",
 					Flag = "NewConfigName"
 				})
 				
 				-- Кнопка для создания новой конфигурации
 				section:Button({
-					Name = "Создать",
+					Name = "Create",
 					Callback = function()
 						local newName = self.Flags["NewConfigName"]
 						
 						if not newName or newName == "" then
-							self:Notification("Введите имя конфигурации", 2)
+							self:Notification("Enter configuration name", 2)
 							return
 						end
 						
 						if table.find(self.ConfigList, newName) then
-							self:Notification("Конфигурация уже существует", 2)
+							self:Notification("Configuration already exists", 2)
 							return
 						end
 						
 						if self:SaveConfig(newName) then
-							self:Notification("Конфигурация создана", 2)
+							self:Notification("Configuration created", 2)
 						end
 					end
 				})
 				
 				-- Кнопка для сохранения конфигурации
 				section:Button({
-					Name = "Сохранить",
+					Name = "Save",
 					Callback = function()
 						local selected = self.Flags["SelectedConfig"]
 						
 						if not selected or selected == "" then
-							self:Notification("Выберите конфигурацию", 2)
+							self:Notification("Select a configuration", 2)
 							return
 						end
 						
 						if self:SaveConfig(selected) then
-							self:Notification("Конфигурация обновлена", 2)
+							self:Notification("Configuration updated", 2)
 						end
 					end
 				})
 				
 				-- Кнопка для загрузки конфигурации
 				section:Button({
-					Name = "Загрузить",
+					Name = "Load",
 					Callback = function()
 						local selected = self.Flags["SelectedConfig"]
 						
 						if not selected or selected == "" then
-							self:Notification("Выберите конфигурацию", 2)
+							self:Notification("Select a configuration", 2)
 							return
 						end
 						
 						if self:LoadConfigByName(selected) then
-							self:Notification("Конфигурация загружена", 2)
+							self:Notification("Configuration loaded", 2)
 						end
 					end
 				})
 				
 				-- Кнопка для удаления конфигурации
 				section:Button({
-					Name = "Удалить",
+					Name = "Delete",
 					Callback = function()
 						local selected = self.Flags["SelectedConfig"]
 						
 						if not selected or selected == "" then
-							self:Notification("Выберите конфигурацию", 2)
+							self:Notification("Select a configuration", 2)
 							return
 						end
 						
 						if selected == "Default" then
-							self:Notification("Нельзя удалить Default", 2)
+							self:Notification("Cannot delete Default", 2)
 							return
 						end
 						
 						if self:DeleteConfig(selected) then
-							self:Notification("Конфигурация удалена", 2)
+							self:Notification("Configuration deleted", 2)
 						end
 					end
 				})
