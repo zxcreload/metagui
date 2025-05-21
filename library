@@ -359,31 +359,49 @@ do
 				end
 			end
 			
-			-- После удаления обновляем UI и перезагружаем список конфигураций
+			-- Переключаемся на Default, чтобы избежать проблем с удаленной конфигурацией
+			self.Flags["SelectedConfig"] = "Default"
+			
+			-- Перезагружаем полный список конфигураций
 			self:LoadAllConfigs()
-			self:UpdateConfigUI()
+			
+			-- Принудительно обновляем UI после всех изменений
+			-- Даем небольшую задержку для уверенности, что все обновления произойдут
+			task.spawn(function()
+				task.wait(0.1)
+				self:UpdateConfigUI()
+			end)
 			
 			return true
 		end
 		
 		-- Обновление UI конфиг-менеджера
 		function Library:UpdateConfigUI()
-			if self.ConfigElements.Dropdown then
-				-- Сначала полностью обновляем список опций в Dropdown
-				pcall(function()
-					if self.ConfigElements.Dropdown.Refresh then
-						-- Обновляем Options список перед вызовом Refresh
+			if self.ConfigElements and self.ConfigElements.Dropdown then
+				-- Обновляем UI компоненты конфиг-менеджера
+				task.spawn(function()
+					-- Подождем немного для уверенности, что UI создан
+					task.wait(0.1)
+					
+					if self.ConfigElements.Dropdown then
+						-- Принудительно обновляем список опций
 						self.ConfigElements.Dropdown.Options = self.ConfigList
-						self.ConfigElements.Dropdown:Refresh(self.ConfigList)
 						
-						-- Обновляем выбранную конфигурацию на первую в списке, если текущей нет в списке
+						-- Вызываем метод Refresh с новым списком
+						if self.ConfigElements.Dropdown.Refresh then
+							self.ConfigElements.Dropdown:Refresh(self.ConfigList)
+						end
+						
+						-- Определяем текущую выбранную конфигурацию
 						local current = self.Flags["SelectedConfig"] or "Default"
+						
+						-- Если текущей конфигурации нет в списке, выбираем первую
 						if not table.find(self.ConfigList, current) then
 							if self.ConfigElements.Dropdown.Set then
 								self.ConfigElements.Dropdown:Set(self.ConfigList[1] or "Default")
 							end
 						else
-							-- Если текущий выбор всё ещё в списке, проверим его визуально
+							-- Если текущая конфигурация есть в списке, переустанавливаем её
 							if self.ConfigElements.Dropdown.Set then
 								self.ConfigElements.Dropdown:Set(current)
 							end
@@ -2641,6 +2659,7 @@ do
 					NewOption.Parent = ContentInline
 
 					Dropdown.OptionInsts[option].text = OptionLabel
+					Dropdown.OptionInsts[option].button = NewOption  -- Добавлено для правильной работы Refresh
 
 					Count = Count + 1
 
@@ -2707,21 +2726,35 @@ do
 			end
 			--
 			function Dropdown:Refresh(tbl)
-				for _, opt in next, Dropdown.OptionInsts do
-					coroutine.wrap(function()
-						opt.button:Destroy()
-					end)()
+				-- Обновляем список опций
+				Dropdown.Options = tbl
+				
+				-- Очищаем содержимое выпадающего списка
+				for option, data in next, Dropdown.OptionInsts do
+					if data.text and data.text.Parent then
+						-- Удаляем родительскую кнопку
+						local button = data.text.Parent
+						if button then
+							button:Destroy()
+						end
+					end
 				end
+				
+				-- Очищаем коллекцию опций
 				table.clear(Dropdown.OptionInsts)
-
+				
+				-- Создаем новые опции на основе обновленного списка
 				createoptions(tbl)
-
+				
+				-- Сбрасываем выбранное значение
 				if Dropdown.Max then
 					table.clear(chosen)
 				else
 					chosen = nil
+					Value.Text = "None"
 				end
-
+				
+				-- Обновляем флаг и вызываем обратный вызов
 				Library.Flags[Dropdown.Flag] = chosen
 				Dropdown.Callback(chosen)
 			end
@@ -2922,6 +2955,7 @@ do
 					NewOption.Parent = ContentInline
 
 					Dropdown.OptionInsts[option].text = OptionLabel
+					Dropdown.OptionInsts[option].button = NewOption  -- Добавлено для правильной работы Refresh
 
 					Count = Count + 1
 
@@ -2984,21 +3018,35 @@ do
 			end
 			--
 			function Dropdown:Refresh(tbl)
-				for _, opt in next, Dropdown.OptionInsts do
-					coroutine.wrap(function()
-						opt.button:Destroy()
-					end)()
+				-- Обновляем список опций
+				Dropdown.Options = tbl
+				
+				-- Очищаем содержимое выпадающего списка
+				for option, data in next, Dropdown.OptionInsts do
+					if data.text and data.text.Parent then
+						-- Удаляем родительскую кнопку
+						local button = data.text.Parent
+						if button then
+							button:Destroy()
+						end
+					end
 				end
+				
+				-- Очищаем коллекцию опций
 				table.clear(Dropdown.OptionInsts)
-
+				
+				-- Создаем новые опции на основе обновленного списка
 				createoptions(tbl)
-
+				
+				-- Сбрасываем выбранное значение
 				if Dropdown.Max then
 					table.clear(chosen)
 				else
 					chosen = nil
+					Value.Text = "None"
 				end
-
+				
+				-- Обновляем флаг и вызываем обратный вызов
 				Library.Flags[Dropdown.Flag] = chosen
 				Dropdown.Callback(chosen)
 			end
