@@ -4321,3 +4321,6 @@ for i,v in next, game.Players.LocalPlayer.Character:GetChildren() do
 		table.insert(Bodyparts, v.Name)
 	end 
 end
+
+-- ВАЖНО: Возвращаем библиотеку для использования через loadstring
+return Library
