@@ -25,12 +25,12 @@ do
 				BorderColor = Color3.fromRGB(0, 0, 0)    -- Цвет границы
 			},
 			light = {
-				Main = Color3.fromRGB(235, 235, 235),    -- Основной фон (Inline)
-				Secondary = Color3.fromRGB(225, 225, 225), -- Фон страниц (PageInline)
-				Outline = Color3.fromRGB(205, 205, 205), -- Контуры элементов (Outline)
-				Text = Color3.fromRGB(20, 20, 20),       -- Цвет текста
+				Main = Color3.fromRGB(240, 240, 240),    -- Основной фон (Inline) - ближе к белому
+				Secondary = Color3.fromRGB(230, 230, 230), -- Фон страниц (PageInline) - светло-серый
+				Outline = Color3.fromRGB(200, 200, 200), -- Контуры элементов (Outline) - серый
+				Text = Color3.fromRGB(20, 20, 20),       -- Цвет текста - почти чёрный
 				TextStroke = 1,                          -- Обводка текста (1 = прозрачно)
-				BorderColor = Color3.fromRGB(155, 155, 155) -- Цвет границы
+				BorderColor = Color3.fromRGB(150, 150, 150) -- Цвет границы - серый
 			}
 		},
 		
@@ -659,103 +659,83 @@ do
 			self.CurrentTheme = themeName
 			local theme = self.Themes[themeName]
 			
+			-- Сохраняем тему для всех будущих UI-элементов
+			Library.Theme = theme
+			
 			-- Обновляем все элементы UI
 			if not self.Holder then
 				return true -- Если UI еще не создан, просто возвращаем успех
 			end
 			
-			-- Безопасно обновляем цвета элемента, если он существует
-			local function safeUpdateColors(element, isMainElement)
-				if not element then return end
+			-- Применяем цвета к основным UI контейнерам
+			local mainContainer = self.Holder
+			if not mainContainer then return true end
+			
+			-- Основной контейнер
+			local inline = mainContainer:FindFirstChild("Inline")
+			if inline then
+				inline.BackgroundColor3 = theme.Main
+				inline.BorderColor3 = theme.BorderColor
+			end
+			
+			-- Рекурсивно обходим все UI элементы
+			local function applyThemeToElement(element)
+				-- Проверяем что элемент существует
+				if not element or typeof(element) ~= "Instance" then return end
 				
-				if isMainElement then
-					-- Для основных контейнеров
-					if element:FindFirstChild("Inline") then
-						local inline = element:FindFirstChild("Inline")
-						inline.BackgroundColor3 = theme.Main
-						inline.BorderColor3 = theme.BorderColor
-						
-						-- Проверяем наличие HolderOutline в Inline
-						if inline:FindFirstChild("HolderOutline") then
-							local holder = inline:FindFirstChild("HolderOutline")
-							holder.BackgroundColor3 = theme.Outline
-							holder.BorderColor3 = theme.BorderColor
-							
-							-- Проверяем наличие HolderInline в HolderOutline
-							if holder:FindFirstChild("HolderInline") then
-								local holderInline = holder:FindFirstChild("HolderInline")
-								holderInline.BackgroundColor3 = theme.Main
-								holderInline.BorderColor3 = theme.BorderColor
-								
-								-- Проверяем наличие PageOutline в HolderInline
-								if holderInline:FindFirstChild("PageOutline") then
-									local pageOutline = holderInline:FindFirstChild("PageOutline")
-									pageOutline.BackgroundColor3 = theme.Outline
-									pageOutline.BorderColor3 = theme.BorderColor
-									
-									-- Проверяем наличие PageInline в PageOutline
-									if pageOutline:FindFirstChild("PageInline") then
-										local pageInline = pageOutline:FindFirstChild("PageInline")
-										pageInline.BackgroundColor3 = theme.Secondary
-										pageInline.BorderColor3 = theme.BorderColor
-									end
-								end
-							end
-						end
-					end
-				else
-					-- Для обычных элементов
-					if element:IsA("Frame") or element:IsA("TextButton") then
+				local name = element.Name or ""
+				
+				-- Обрабатываем различные элементы UI в зависимости от их имени или типа
+				if element:IsA("Frame") then
+					-- Контуры
+					if name:find("Outline") then
 						element.BackgroundColor3 = theme.Outline
 						element.BorderColor3 = theme.BorderColor
-						
-						-- Вложенные элементы
-						if element:FindFirstChild("Inline") then
-							element:FindFirstChild("Inline").BackgroundColor3 = theme.Main
-							element:FindFirstChild("Inline").BorderColor3 = theme.BorderColor
-						end
-					elseif element:IsA("TextLabel") or element:IsA("TextBox") then
-						element.TextColor3 = theme.Text
-						element.TextStrokeTransparency = theme.TextStroke
+					-- Внутренние элементы
+					elseif name:find("Inline") then  
+						element.BackgroundColor3 = theme.Main
+						element.BorderColor3 = theme.BorderColor
+					-- Страницы
+					elseif name == "PageInline" then
+						element.BackgroundColor3 = theme.Secondary
+						element.BorderColor3 = theme.BorderColor
 					end
-				end
-			end
-			
-			-- Обновляем главный контейнер
-			safeUpdateColors(self.Holder, true)
-			
-			-- Рекурсивно обновляем цвета всех текстовых и UI элементов
-			local function updateColors(parent)
-				if not parent then return end
 				
-				for _, child in pairs(parent:GetChildren()) do
-					-- Обновляем цвета основных UI элементов
-					if child:IsA("Frame") or child:IsA("TextButton") then
-						-- Пропускаем основные контейнеры, которые уже обработали выше
-						if child.Name ~= "Inline" and 
-						   child.Name ~= "HolderOutline" and 
-						   child.Name ~= "HolderInline" and
-						   child.Name ~= "PageOutline" and
-						   child.Name ~= "PageInline" then
-							safeUpdateColors(child, false)
-						end
-					end
-					
-					-- Обновляем текстовые элементы
-					if child:IsA("TextLabel") or child:IsA("TextBox") or child:IsA("TextButton") then
-						child.TextColor3 = theme.Text
-						child.TextStrokeTransparency = theme.TextStroke
-					end
-					
-					-- Рекурсивно обрабатываем дочерние элементы
-					if #child:GetChildren() > 0 then
-						updateColors(child)
-					end
+				-- Текстовые элементы
+				elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
+					element.TextColor3 = theme.Text
+					element.TextStrokeTransparency = theme.TextStroke
+				end
+				
+				-- Рекурсивно обрабатываем все дочерние элементы
+				for _, child in ipairs(element:GetChildren()) do
+					applyThemeToElement(child)
 				end
 			end
 			
-			-- Запускаем рекурсивное обновление цветов
-			updateColors(self.Holder)
+			-- Применяем тему ко всему UI
+			applyThemeToElement(mainContainer)
+			
+			-- Также применяем тему к дополнительным HUD элементам
+			if Library.Indicator then
+				applyThemeToElement(Library.Indicator.Outline)
+			end
+			
+			if Library.Watermark then 
+				applyThemeToElement(Library.Watermark.Outline)
+			end
+			
+			if Library.StaffList then
+				applyThemeToElement(Library.StaffList.Outline)
+			end
+			
+			if Library.KeybindsList then
+				applyThemeToElement(Library.KeybindsList.Outline)
+			end
+			
+			-- Обновляем тему во всех компонентах системы
+			-- Переопределяем стандартные функции создания UI элементов,
+			-- чтобы при создании новых элементов они получали текущую тему
 			
 			return true
 		end
@@ -1200,8 +1180,9 @@ do
 				Library.CurrentTheme = themeName
 			end
 			
-			-- Получаем текущую тему
+			-- Получаем текущую тему и сохраняем её для всех будущих элементов
 			local theme = Library.Themes[Library.CurrentTheme];
+			Library.Theme = theme;
 			--
 			local UI = Instance.new("ScreenGui", game:GetService("RunService"):IsStudio() and game.Players.LocalPlayer.PlayerGui or game.CoreGui)
 			UI.Name = "UI"
