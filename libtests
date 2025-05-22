@@ -660,78 +660,103 @@ do
 			local theme = self.Themes[themeName]
 			
 			-- Обновляем все элементы UI
-			if self.Holder then
-				-- Основной контейнер
-				local inline = self.Holder:FindFirstChild("Inline")
-				if inline then 
-					inline.BackgroundColor3 = theme.Main
-					inline.BorderColor3 = theme.BorderColor
-				end
+			if not self.Holder then
+				return true -- Если UI еще не создан, просто возвращаем успех
+			end
+			
+			-- Безопасно обновляем цвета элемента, если он существует
+			local function safeUpdateColors(element, isMainElement)
+				if not element then return end
 				
-				-- Контейнер для страниц
-				local holder = inline and inline:FindFirstChild("HolderOutline")
-				if holder then
-					holder.BackgroundColor3 = theme.Outline
-					holder.BorderColor3 = theme.BorderColor
-					
-					local holderInline = holder:FindFirstChild("HolderInline")
-					if holderInline then
-						holderInline.BackgroundColor3 = theme.Main
-						holderInline.BorderColor3 = theme.BorderColor
+				if isMainElement then
+					-- Для основных контейнеров
+					if element:FindFirstChild("Inline") then
+						local inline = element:FindFirstChild("Inline")
+						inline.BackgroundColor3 = theme.Main
+						inline.BorderColor3 = theme.BorderColor
 						
-						-- Находим PageOutline
-						local pageOutline = holderInline:FindFirstChild("PageOutline")
-						if pageOutline then
-							pageOutline.BackgroundColor3 = theme.Outline
-							pageOutline.BorderColor3 = theme.BorderColor
+						-- Проверяем наличие HolderOutline в Inline
+						if inline:FindFirstChild("HolderOutline") then
+							local holder = inline:FindFirstChild("HolderOutline")
+							holder.BackgroundColor3 = theme.Outline
+							holder.BorderColor3 = theme.BorderColor
 							
-							-- Находим PageInline
-							local pageInline = pageOutline:FindFirstChild("PageInline")
-							if pageInline then
-								pageInline.BackgroundColor3 = theme.Secondary
-								pageInline.BorderColor3 = theme.BorderColor
-							end
-						end
-					end
-				end
-				
-				-- Обновляем текстовые элементы
-				local function updateTextElements(parent)
-					for _, child in pairs(parent:GetChildren()) do
-						if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
-							child.TextColor3 = theme.Text
-							child.TextStrokeTransparency = theme.TextStroke
-						end
-						
-						-- Рекурсивно обрабатываем дочерние элементы
-						if #child:GetChildren() > 0 then
-							updateTextElements(child)
-						end
-					end
-				end
-				
-				updateTextElements(self.Holder)
-				
-				-- Обновляем цвета элементов UI (секций, переключателей и т.д.)
-				for _, page in pairs(self.Pages) do
-					-- Проверяем, что Sections это таблица, а не функция
-					if type(page.Sections) == "table" then
-						for _, section in pairs(page.Sections) do
-							if section.Elements and section.Elements.SectionOutline then
-								section.Elements.SectionOutline.BackgroundColor3 = theme.Outline
-								section.Elements.SectionOutline.BorderColor3 = theme.BorderColor
+							-- Проверяем наличие HolderInline в HolderOutline
+							if holder:FindFirstChild("HolderInline") then
+								local holderInline = holder:FindFirstChild("HolderInline")
+								holderInline.BackgroundColor3 = theme.Main
+								holderInline.BorderColor3 = theme.BorderColor
 								
-								if section.Elements.SectionInline then
-									section.Elements.SectionInline.BackgroundColor3 = theme.Main
-									section.Elements.SectionInline.BorderColor3 = theme.BorderColor
+								-- Проверяем наличие PageOutline в HolderInline
+								if holderInline:FindFirstChild("PageOutline") then
+									local pageOutline = holderInline:FindFirstChild("PageOutline")
+									pageOutline.BackgroundColor3 = theme.Outline
+									pageOutline.BorderColor3 = theme.BorderColor
+									
+									-- Проверяем наличие PageInline в PageOutline
+									if pageOutline:FindFirstChild("PageInline") then
+										local pageInline = pageOutline:FindFirstChild("PageInline")
+										pageInline.BackgroundColor3 = theme.Secondary
+										pageInline.BorderColor3 = theme.BorderColor
+									end
 								end
 							end
 						end
 					end
+				else
+					-- Для обычных элементов
+					if element:IsA("Frame") or element:IsA("TextButton") then
+						element.BackgroundColor3 = theme.Outline
+						element.BorderColor3 = theme.BorderColor
+						
+						-- Вложенные элементы
+						if element:FindFirstChild("Inline") then
+							element:FindFirstChild("Inline").BackgroundColor3 = theme.Main
+							element:FindFirstChild("Inline").BorderColor3 = theme.BorderColor
+						end
+					elseif element:IsA("TextLabel") or element:IsA("TextBox") then
+						element.TextColor3 = theme.Text
+						element.TextStrokeTransparency = theme.TextStroke
+					end
 				end
 			end
 			
-			-- Также можно обновить другие элементы при необходимости
+			-- Обновляем главный контейнер
+			safeUpdateColors(self.Holder, true)
+			
+			-- Рекурсивно обновляем цвета всех текстовых и UI элементов
+			local function updateColors(parent)
+				if not parent then return end
+				
+				for _, child in pairs(parent:GetChildren()) do
+					-- Обновляем цвета основных UI элементов
+					if child:IsA("Frame") or child:IsA("TextButton") then
+						-- Пропускаем основные контейнеры, которые уже обработали выше
+						if child.Name ~= "Inline" and 
+						   child.Name ~= "HolderOutline" and 
+						   child.Name ~= "HolderInline" and
+						   child.Name ~= "PageOutline" and
+						   child.Name ~= "PageInline" then
+							safeUpdateColors(child, false)
+						end
+					end
+					
+					-- Обновляем текстовые элементы
+					if child:IsA("TextLabel") or child:IsA("TextBox") or child:IsA("TextButton") then
+						child.TextColor3 = theme.Text
+						child.TextStrokeTransparency = theme.TextStroke
+					end
+					
+					-- Рекурсивно обрабатываем дочерние элементы
+					if #child:GetChildren() > 0 then
+						updateColors(child)
+					end
+				end
+			end
+			
+			-- Запускаем рекурсивное обновление цветов
+			updateColors(self.Holder)
+			
 			return true
 		end
 	end;
