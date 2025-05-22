@@ -170,7 +170,7 @@ local function GetCoordinates()
     local player = game:GetService("Players").LocalPlayer
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local pos = player.Character.HumanoidRootPart.Position
-        return string.format("%.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z)
+        return string.format("%d,%d,%d", math.floor(pos.X), math.floor(pos.Y), math.floor(pos.Z))
     end
     return "N/A"
 end
@@ -183,7 +183,7 @@ local function GetSpeed()
         -- Вычисляем только горизонтальную скорость (без учета вертикали)
         local velocity = humanoidRootPart.Velocity
         local horizSpeed = math.sqrt(velocity.X^2 + velocity.Z^2)
-        return string.format("%.1f studs/s", horizSpeed)
+        return string.format("%d s/s", math.floor(horizSpeed))
     end
     return "N/A"
 end
@@ -198,7 +198,7 @@ local function GetState()
             -- Проверяем, находится ли персонаж на земле
             if humanoid.FloorMaterial == Enum.Material.Air then
                 return "Air"
-            else
+                else
                 return "Ground"
             end
         end
@@ -232,7 +232,7 @@ function UpdateIndicatorElements()
     
     -- Если список опций пуст, очищаем индикатор и завершаем функцию
     if #selectedOptions == 0 then
-        Indicator:ClearAll()
+    Indicator:ClearAll()
         return
     end
     
@@ -251,35 +251,35 @@ function UpdateIndicatorElements()
     
     -- Добавляем или обновляем выбранные элементы
     if optionsMap["coordinates"] then
-        Indicator:NewValue({
-            Key = "coordinates",
-            Name = "Coords:",
-            Value = GetCoordinates()
-        })
+            Indicator:NewValue({
+                Key = "coordinates",
+                Name = "Coords:",
+                Value = GetCoordinates()
+            })
     end
     
     if optionsMap["state"] then
-        Indicator:NewValue({
-            Key = "state",
+            Indicator:NewValue({
+                Key = "state",
             Name = "Air/Ground:",
-            Value = GetState()
-        })
+                Value = GetState()
+            })
     end
     
     if optionsMap["ping"] then
-        Indicator:NewValue({
-            Key = "ping",
-            Name = "Ping:",
-            Value = GetPing()
-        })
+            Indicator:NewValue({
+                Key = "ping",
+                Name = "Ping:",
+                Value = GetPing()
+            })
     end
     
     if optionsMap["speed"] then
-        Indicator:NewValue({
-            Key = "speed",
-            Name = "Speed:",
-            Value = GetSpeed()
-        })
+            Indicator:NewValue({
+                Key = "speed",
+                Name = "Speed:",
+                Value = GetSpeed()
+            })
     end
 end
 
@@ -423,6 +423,77 @@ spawn(function()
         end
     end
 end)
+
+-- Создаем секцию для Keybinds List в Config
+local KeybindsSection = ConfigPage:Section({
+    Name = "Keybinds",
+    Side = "left"
+})
+
+-- Создаем KeybindsList
+local KeybindsList = Library:KeybindsList({
+    Name = "Keybinds List",
+    Flags = {} -- Заполним после выбора
+})
+
+-- Устанавливаем начальную позицию в правом верху экрана
+KeybindsList:SetPosition("right")
+
+-- Список доступных кейбиндов (флаги и названия)
+local AvailableKeybinds = {
+    {Flag = "ToggleGUI", Name = "Toggle GUI"},
+    -- Добавь сюда свои кейбинды, если появятся новые
+}
+
+local KeybindFlags = {}
+local KeybindNames = {}
+for _, v in ipairs(AvailableKeybinds) do
+    table.insert(KeybindFlags, v.Flag)
+    table.insert(KeybindNames, v.Name)
+end
+
+-- Toggle для включения/выключения Keybinds List
+KeybindsSection:Toggle({
+    Name = "Keybinds List",
+    Default = false,
+    Flag = "KeybindsListEnabled",
+    Callback = function(Value)
+        KeybindsList:SetVisible(Value)
+        
+        -- При включении обновляем отображаемые элементы
+        if Value then
+            local selectedFlags = {}
+            local selectedOptions = Library.Flags["KeybindsListFlags"] or {}
+            
+            for i, name in ipairs(KeybindNames) do
+                if table.find(selectedOptions, name) then
+                    table.insert(selectedFlags, KeybindFlags[i])
+                end
+            end
+            
+            KeybindsList:SetFlags(selectedFlags)
+        end
+    end
+})
+
+-- Мультибокс для выбора отображаемых кейбиндов
+KeybindsSection:List({
+    Name = "Show Keybinds",
+    Options = KeybindNames,
+    Default = {KeybindNames[1]}, -- По умолчанию выбираем первый кейбинд
+    Max = #KeybindNames,
+    Flag = "KeybindsListFlags",
+    Callback = function(selected)
+        -- Преобразуем выбранные имена в флаги
+        local selectedFlags = {}
+        for i, name in ipairs(KeybindNames) do
+            if table.find(selected, name) then
+                table.insert(selectedFlags, KeybindFlags[i])
+            end
+        end
+        KeybindsList:SetFlags(selectedFlags)
+    end
+})
 
 -- Create a notification to show the UI is loaded
 Library:Notification("UI loaded successfully", 3)
