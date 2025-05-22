@@ -269,19 +269,20 @@ do
 		function Library:ChangeAccent(Color)
 			Library.Accent = Color
 
-			-- Обновляем акцентный цвет для всех элементов, которые должны его использовать
-			-- Эта логика будет теперь частично дублироваться в ChangeTheme,
-			-- но оставим её здесь для прямого изменения акцента без смены темы.
-			for obj, theme in next, Library.ThemeObjects do
-				if obj and obj:IsA("TextButton") and Library.CurrentTheme == "light" then -- Применяем только для TextButton в светлой теме
-					obj.BackgroundColor3 = Color
-				elseif obj and obj:IsA("TextLabel") or obj:IsA("TextBox") and Library.CurrentTheme == "light" then
-					obj.TextColor3 = Color
-				elseif obj and obj:IsA("ImageLabel") or obj:IsA("ImageButton") and Library.CurrentTheme == "light" then
-                    obj.ImageColor3 = Color
-                elseif obj and obj:IsA("ScrollingFrame") and Library.CurrentTheme == "light" then
-                    obj.ScrollBarImageColor3 = Color
-				-- Добавьте другие типы элементов, если они должны использовать акцентный цвет
+			-- Исправляем цикл для корректного перебора элементов
+			for _, obj in ipairs(Library.ThemeObjects) do -- Используем ipairs для нумерованных таблиц
+				-- Проверяем, что obj действительно является объектом Instance перед вызовом IsA
+				if typeof(obj) == "Instance" then
+					if obj:IsA("TextButton") and Library.CurrentTheme == "light" then -- Применяем только для TextButton в светлой теме
+						obj.BackgroundColor3 = Color
+					elseif (obj:IsA("TextLabel") or obj:IsA("TextBox")) and Library.CurrentTheme == "light" then
+						obj.TextColor3 = Color
+					elseif (obj:IsA("ImageLabel") or obj:IsA("ImageButton")) and Library.CurrentTheme == "light" then
+						obj.ImageColor3 = Color
+					elseif obj:IsA("ScrollingFrame") and Library.CurrentTheme == "light" then
+						obj.ScrollBarImageColor3 = Color	
+					-- Добавьте другие типы элементов, если они должны использовать акцентный цвет
+					end
 				end
 			end
 		end
