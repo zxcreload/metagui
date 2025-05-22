@@ -504,3 +504,37 @@ game:GetService("UserInputService").InputBegan:Connect(function(input)
         Library:SetOpen(not Library.Open)
     end
 end)
+
+-- Create Misc sections
+local FeaturesSection = MiscPage:Section({
+    Name = "Features",
+    Side = "left"
+})
+
+-- Variable to hold the Anti AFK connection
+local antiAfkConnection = nil
+
+-- Anti AFK Toggle
+FeaturesSection:Toggle({
+    Name = "Anti AFK",
+    Default = false,
+    Flag = "AntiAFKEnabled",
+    Callback = function(value)
+        local VirtualUser = game:GetService("VirtualUser")
+        local LocalPlayer = game:GetService("Players").LocalPlayer
+
+        if value then -- Enable Anti AFK
+            if LocalPlayer and antiAfkConnection == nil then
+                antiAfkConnection = LocalPlayer.Idled:Connect(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                end)
+            end
+        else -- Disable Anti AFK
+            if antiAfkConnection ~= nil then
+                antiAfkConnection:Disconnect()
+                antiAfkConnection = nil
+            end
+        end
+    end
+})
