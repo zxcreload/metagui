@@ -714,14 +714,17 @@ do
 				
 				-- Обновляем цвета элементов UI (секций, переключателей и т.д.)
 				for _, page in pairs(self.Pages) do
-					for _, section in pairs(page.Sections) do
-						if section.Elements and section.Elements.SectionOutline then
-							section.Elements.SectionOutline.BackgroundColor3 = theme.Outline
-							section.Elements.SectionOutline.BorderColor3 = theme.BorderColor
-							
-							if section.Elements.SectionInline then
-								section.Elements.SectionInline.BackgroundColor3 = theme.Main
-								section.Elements.SectionInline.BorderColor3 = theme.BorderColor
+					-- Проверяем, что Sections это таблица, а не функция
+					if type(page.Sections) == "table" then
+						for _, section in pairs(page.Sections) do
+							if section.Elements and section.Elements.SectionOutline then
+								section.Elements.SectionOutline.BackgroundColor3 = theme.Outline
+								section.Elements.SectionOutline.BorderColor3 = theme.BorderColor
+								
+								if section.Elements.SectionInline then
+									section.Elements.SectionInline.BackgroundColor3 = theme.Main
+									section.Elements.SectionInline.BorderColor3 = theme.BorderColor
+								end
 							end
 						end
 					end
