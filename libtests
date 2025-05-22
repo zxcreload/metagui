@@ -269,15 +269,19 @@ do
 		function Library:ChangeAccent(Color)
 			Library.Accent = Color
 
+			-- Обновляем акцентный цвет для всех элементов, которые должны его использовать
+			-- Эта логика будет теперь частично дублироваться в ChangeTheme,
+			-- но оставим её здесь для прямого изменения акцента без смены темы.
 			for obj, theme in next, Library.ThemeObjects do
-				if theme:IsA("Frame") or theme:IsA("TextButton") then
-					theme.BackgroundColor3 = Color
-				elseif theme:IsA("TextLabel") or theme:IsA("TextBox") then
-					theme.TextColor3 = Color
-				elseif theme:IsA("ImageLabel") or theme:IsA("ImageButton") then
-					theme.ImageColor3 = Color
-				elseif theme:IsA("ScrollingFrame") then
-					theme.ScrollBarImageColor3 = Library.Accent
+				if obj and obj:IsA("TextButton") and Library.CurrentTheme == "light" then -- Применяем только для TextButton в светлой теме
+					obj.BackgroundColor3 = Color
+				elseif obj and obj:IsA("TextLabel") or obj:IsA("TextBox") and Library.CurrentTheme == "light" then
+					obj.TextColor3 = Color
+				elseif obj and obj:IsA("ImageLabel") or obj:IsA("ImageButton") and Library.CurrentTheme == "light" then
+                    obj.ImageColor3 = Color
+                elseif obj and obj:IsA("ScrollingFrame") and Library.CurrentTheme == "light" then
+                    obj.ScrollBarImageColor3 = Color
+				-- Добавьте другие типы элементов, если они должны использовать акцентный цвет
 				end
 			end
 		end
@@ -650,57 +654,93 @@ do
 		end
 
 		function Library:ChangeTheme(themeName)
-			if not self.Themes[themeName] then return false end
+			-- Проверяем существование темы
+			if not self.Themes[themeName] then
+				return false
+			end
+			
+			-- Применяем новую тему
 			self.CurrentTheme = themeName
 			local theme = self.Themes[themeName]
+			
+			-- Сохраняем тему для всех будущих UI-элементов
 			Library.Theme = theme
-			if not self.Holder then return true end
-
+			
+			-- Обновляем все элементы UI
+			if not self.Holder then
+				return true -- Если UI еще не создан, просто возвращаем успех
+			end
+			
+			-- Применяем цвета к основным UI контейнерам
+			local mainContainer = self.Holder
+			if not mainContainer then return true end
+			
+			-- Основной контейнер
+			local inline = mainContainer:FindFirstChild("Inline")
+			if inline then
+				inline.BackgroundColor3 = theme.Main
+				inline.BorderColor3 = theme.BorderColor
+			end
+			
+			-- Рекурсивно обходим все UI элементы
 			local function applyThemeToElement(element)
+				-- Проверяем что элемент существует
 				if not element or typeof(element) ~= "Instance" then return end
+				
 				local name = element.Name or ""
-				-- Основные контейнеры
+				
+				-- Обрабатываем различные элементы UI в зависимости от их имени или типа
 				if element:IsA("Frame") then
+					-- Контуры
 					if name:find("Outline") then
 						element.BackgroundColor3 = theme.Outline
 						element.BorderColor3 = theme.BorderColor
-					elseif name:find("Inline") then
+					-- Внутренние элементы
+					elseif name:find("Inline") then  
 						element.BackgroundColor3 = theme.Main
 						element.BorderColor3 = theme.BorderColor
+					-- Страницы
 					elseif name == "PageInline" then
 						element.BackgroundColor3 = theme.Secondary
 						element.BorderColor3 = theme.BorderColor
 					end
-				end
+				
 				-- Текстовые элементы
-				if element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
+				elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
 					element.TextColor3 = theme.Text
 					element.TextStrokeTransparency = theme.TextStroke
 				end
-				-- Акцент для активных элементов (dropdown, selected, hovered)
-				if element:IsA("Frame") or element:IsA("TextButton") then
-					if (element:FindFirstChild("Selected") and element.Selected and element.Selected.Value)
-					or (element:FindFirstChild("Open") and element.Open and element.Open.Value)
-					or (element:FindFirstChild("Active") and element.Active and element.Active.Value)
-					or name:lower():find("active") or name:lower():find("selected") or name:lower():find("open") then
-						element.BackgroundColor3 = Library.Accent
-					end
-				end
+				
+				-- Рекурсивно обрабатываем все дочерние элементы
 				for _, child in ipairs(element:GetChildren()) do
 					applyThemeToElement(child)
 				end
 			end
-			applyThemeToElement(self.Holder)
-			-- HUD элементы
-			local function safeApplyOutline(obj)
-				if obj and typeof(obj) == "table" and type(obj.Outline) == "userdata" and obj.Outline:IsA("Instance") then
-					applyThemeToElement(obj.Outline)
-				end
+			
+			-- Применяем тему ко всему UI
+			applyThemeToElement(mainContainer)
+			
+			-- Также применяем тему к дополнительным HUD элементам
+			if Library.Indicator then
+				applyThemeToElement(Library.Indicator.Outline)
 			end
-			safeApplyOutline(Library.Indicator)
-			safeApplyOutline(Library.Watermark)
-			safeApplyOutline(Library.StaffList)
-			safeApplyOutline(Library.KeybindsList)
+			
+			if Library.Watermark then 
+				applyThemeToElement(Library.Watermark.Outline)
+			end
+			
+			if Library.StaffList then
+				applyThemeToElement(Library.StaffList.Outline)
+			end
+			
+			if Library.KeybindsList then
+				applyThemeToElement(Library.KeybindsList.Outline)
+			end
+			
+			-- Обновляем тему во всех компонентах системы
+			-- Переопределяем стандартные функции создания UI элементов,
+			-- чтобы при создании новых элементов они получали текущую тему
+			
 			return true
 		end
 	end;
@@ -713,8 +753,9 @@ do
 			--
 			Icon.Name = "Icon"
 			Icon.AnchorPoint = Vector2.new(0, 0.5)
-			Icon.BackgroundColor3 = default
-			Icon.BorderColor3 = Color3.fromRGB(50,50,50)
+			-- Используем акцентный цвет для Icon в светлой теме, основной для темной
+			Icon.BackgroundColor3 = (Library.CurrentTheme == "light") and Library.Accent or Library.Theme.Main
+			Icon.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
 			Icon.BorderSizePixel = 1
 			if count == 1 then
 				Icon.Position = UDim2.new(1, - (count * 21),0.5,0)
@@ -727,9 +768,9 @@ do
 			
 			local Outline4 = Instance.new("Frame")
 			Outline4.Name = "Outline"
-			Outline4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			Outline4.BackgroundColor3 = Library.Theme.Outline -- Используем цвет контура из текущей темы
 			Outline4.BackgroundTransparency = 1
-			Outline4.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			Outline4.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
 			Outline4.BorderSizePixel = 0
 			Outline4.Position = UDim2.new(0, -1, 0, -1)
 			Outline4.Size = UDim2.new(1, 2, 1, 2)
@@ -743,8 +784,8 @@ do
 			local ColorWindow = Instance.new("Frame")
 			ColorWindow.Name = "ColorWindow"
 			ColorWindow.AnchorPoint = Vector2.new(0.5, 0.5)
-			ColorWindow.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-			ColorWindow.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			ColorWindow.BackgroundColor3 = Library.Theme.Secondary -- Используем вторичный цвет темы для фона окна
+			ColorWindow.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
 			ColorWindow.Parent = Icon
 			ColorWindow.Position = UDim2.new(1,0,1,2)
 			ColorWindow.AnchorPoint = Vector2.new(1,0)
@@ -754,8 +795,8 @@ do
 
 			local ColorInline = Instance.new("Frame")
 			ColorInline.Name = "ColorInline"
-			ColorInline.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-			ColorInline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			ColorInline.BackgroundColor3 = Library.Theme.Main -- Используем основной цвет темы для внутреннего фрейма
+			ColorInline.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
 			ColorInline.BorderSizePixel = 0
 			ColorInline.Position = UDim2.new(0, 1, 0, 1)
 			ColorInline.Size = UDim2.new(1, -2, 1, -2)
@@ -764,11 +805,11 @@ do
 			Color.Name = "Color"
 			Color.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
 			Color.Text = ""
-			Color.TextColor3 = Color3.fromRGB(0, 0, 0)
+			Color.TextColor3 = Library.Theme.Text -- Используем цвет текста из текущей темы
 			Color.TextSize = 14
 			Color.AutoButtonColor = false
-			Color.BackgroundColor3 = default
-			Color.BorderColor3 = Color3.fromRGB(50, 50, 50)
+			Color.BackgroundColor3 = default -- Здесь оставляем default, так как это выбранный цвет
+			Color.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
 			Color.Position = UDim2.new(0, 6, 0, 6)
 			Color.Size = UDim2.new(1, -30, 1, -12)
 
