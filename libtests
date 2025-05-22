@@ -650,93 +650,57 @@ do
 		end
 
 		function Library:ChangeTheme(themeName)
-			-- Проверяем существование темы
-			if not self.Themes[themeName] then
-				return false
-			end
-			
-			-- Применяем новую тему
+			if not self.Themes[themeName] then return false end
 			self.CurrentTheme = themeName
 			local theme = self.Themes[themeName]
-			
-			-- Сохраняем тему для всех будущих UI-элементов
 			Library.Theme = theme
-			
-			-- Обновляем все элементы UI
-			if not self.Holder then
-				return true -- Если UI еще не создан, просто возвращаем успех
-			end
-			
-			-- Применяем цвета к основным UI контейнерам
-			local mainContainer = self.Holder
-			if not mainContainer then return true end
-			
-			-- Основной контейнер
-			local inline = mainContainer:FindFirstChild("Inline")
-			if inline then
-				inline.BackgroundColor3 = theme.Main
-				inline.BorderColor3 = theme.BorderColor
-			end
-			
-			-- Рекурсивно обходим все UI элементы
+			if not self.Holder then return true end
+
 			local function applyThemeToElement(element)
-				-- Проверяем что элемент существует
 				if not element or typeof(element) ~= "Instance" then return end
-				
 				local name = element.Name or ""
-				
-				-- Обрабатываем различные элементы UI в зависимости от их имени или типа
+				-- Основные контейнеры
 				if element:IsA("Frame") then
-					-- Контуры
 					if name:find("Outline") then
 						element.BackgroundColor3 = theme.Outline
 						element.BorderColor3 = theme.BorderColor
-					-- Внутренние элементы
-					elseif name:find("Inline") then  
+					elseif name:find("Inline") then
 						element.BackgroundColor3 = theme.Main
 						element.BorderColor3 = theme.BorderColor
-					-- Страницы
 					elseif name == "PageInline" then
 						element.BackgroundColor3 = theme.Secondary
 						element.BorderColor3 = theme.BorderColor
 					end
-				
+				end
 				-- Текстовые элементы
-				elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
+				if element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
 					element.TextColor3 = theme.Text
 					element.TextStrokeTransparency = theme.TextStroke
 				end
-				
-				-- Рекурсивно обрабатываем все дочерние элементы
+				-- Акцент для активных элементов (dropdown, selected, hovered)
+				if element:IsA("Frame") or element:IsA("TextButton") then
+					if (element:FindFirstChild("Selected") and element.Selected and element.Selected.Value)
+					or (element:FindFirstChild("Open") and element.Open and element.Open.Value)
+					or (element:FindFirstChild("Active") and element.Active and element.Active.Value)
+					or name:lower():find("active") or name:lower():find("selected") or name:lower():find("open") then
+						element.BackgroundColor3 = Library.Accent
+					end
+				end
 				for _, child in ipairs(element:GetChildren()) do
 					applyThemeToElement(child)
 				end
 			end
-			
-			-- Применяем тему ко всему UI
-			applyThemeToElement(mainContainer)
-			
-			-- Также применяем тему к дополнительным HUD элементам
-			if Library.Indicator then
-				applyThemeToElement(Library.Indicator.Outline)
+			applyThemeToElement(self.Holder)
+			-- HUD элементы
+			local function safeApplyOutline(obj)
+				if obj and typeof(obj) == "table" and type(obj.Outline) == "userdata" and obj.Outline:IsA("Instance") then
+					applyThemeToElement(obj.Outline)
+				end
 			end
-			
-			if Library.Watermark then 
-				applyThemeToElement(Library.Watermark.Outline)
-			end
-			
-			if Library.StaffList then
-				applyThemeToElement(Library.StaffList.Outline)
-			end
-			
-			if Library.KeybindsList then
-				applyThemeToElement(Library.KeybindsList.Outline)
-			end
-			
-			-- Обновляем тему во всех компонентах системы
-			-- Переопределяем стандартные функции создания UI элементов,
-			-- чтобы при создании новых элементов они получали текущую тему
-			
+			safeApplyOutline(Library.Indicator)
+			safeApplyOutline(Library.Watermark)
+			safeApplyOutline(Library.StaffList)
+			safeApplyOutline(Library.KeybindsList)
 			return true
 		end
 	end;
