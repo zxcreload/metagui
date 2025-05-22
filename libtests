@@ -1912,6 +1912,16 @@ do
 					),
 					Binding = nil,
 				}
+				
+				-- Регистрируем кейбинд для KeybindsList
+				if not Library.Keybinds then
+					Library.Keybinds = {}
+				end
+				
+				Library.Keybinds[Keybind.Flag] = {
+					Name = self.Name,
+					Mode = Keybind.Mode
+				}
 				local Key
 				local State = false
 				--
@@ -3325,6 +3335,16 @@ do
 						or Library.NextFlag()
 				),
 				Binding = nil,
+			}
+			
+			-- Регистрируем кейбинд для KeybindsList
+			if not Library.Keybinds then
+				Library.Keybinds = {}
+			end
+			
+			Library.Keybinds[Keybind.Flag] = {
+				Name = Keybind.Name,
+				Mode = Keybind.Mode
 			}
 			local Key
 			local State = false
@@ -5295,6 +5315,26 @@ do
 				end
 			end)
 
+			-- Инициализируем реестр кейбиндов, если не было
+			if not Library.Keybinds then 
+				Library.Keybinds = {}
+				
+				-- Проверяем существующие флаги на наличие кейбиндов (для совместимости)
+				-- Регистрируем все существующие кейбинды в Flags
+				for flag, _ in pairs(Library.Flags) do
+					-- Если это флаг кейбинда (_KEY)
+					if string.find(flag, "_KEY$") then
+						local baseFlag = string.sub(flag, 1, #flag - 4) -- Убираем "_KEY"
+						if not Library.Keybinds[baseFlag] then
+							Library.Keybinds[baseFlag] = {
+								Name = baseFlag,
+								Mode = Library.Flags[baseFlag .. "_KEY STATE"] or "Toggle"
+							}
+						end
+					end
+				end
+			end
+
 			-- Методы
 			function KeybindsList:SetVisible(State)
 				self.Visible = State
@@ -5303,6 +5343,18 @@ do
 					self:ClearAll()
 				else
 					self:UpdateList()
+				end
+			end
+
+			function KeybindsList:SetPosition(Position)
+				if Position == "top" then
+					Outline.Position = UDim2.new(0.5, 0, 0, 50)
+				elseif Position == "bottom" then
+					Outline.Position = UDim2.new(0.5, 0, 1, -50)
+				elseif Position == "left" then
+					Outline.Position = UDim2.new(0, 50, 0.5, 0)
+				elseif Position == "right" then
+					Outline.Position = UDim2.new(1, -50, 0.5, 0)
 				end
 			end
 
@@ -5323,21 +5375,40 @@ do
 			function KeybindsList:UpdateList()
 				if not self.Visible then return end
 				self:ClearAll()
+				
 				-- Список флагов для отображения
 				local flags = self.ShownFlags or {}
 				for _, flag in ipairs(flags) do
-					local keybindData = Library.Keybinds and Library.Keybinds[flag]
-					if keybindData then
+					-- Получаем информацию о кейбинде
+					local key = Library.Flags[flag .. "_KEY"]
+					if key then -- Проверяем существование кейбинда
+						-- Если кейбинд существует, но не зарегистрирован, создаем запись
+						if not Library.Keybinds[flag] then
+							Library.Keybinds[flag] = {
+								Name = flag,
+								Mode = Library.Flags[flag .. "_KEY STATE"] or "Toggle"
+							}
+						end
+						
+						local keybindData = Library.Keybinds[flag]
 						local name = keybindData.Name or flag
-						local key = Library.Flags[flag .. "_KEY"]
 						local mode = Library.Flags[flag .. "_KEY STATE"] or keybindData.Mode or "Toggle"
-						local keyText = key and (Library.Keys and Library.Keys[key] or tostring(key):gsub("Enum.KeyCode.", "")) or "None"
-						local modeText = mode
+						
+						-- Преобразуем ключ в текст
+						local keyText 
+						if typeof(key) == "EnumItem" then 
+							keyText = string.gsub(tostring(key), "Enum.KeyCode.", "") 
+						elseif typeof(key) == "string" then
+							keyText = key:gsub("Enum.KeyCode.", "")
+						else
+							keyText = tostring(key)
+						end
+						
 						-- UI элемент
 						local Entry = Instance.new("TextLabel")
 						Entry.Name = "KeybindEntry"
 						Entry.FontFace = Font.fromEnum(Enum.Font.RobotoMono)
-						Entry.Text = string.format("%s: %s [%s]", name, keyText, modeText)
+						Entry.Text = string.format("%s: %s", name, keyText)
 						Entry.TextColor3 = Color3.fromRGB(255, 255, 255)
 						Entry.TextSize = 12
 						Entry.TextStrokeTransparency = 0
@@ -5362,10 +5433,6 @@ do
 					end
 				end
 			end)()
-
-			-- Регистрируем кейбинды, если не было
-			Library.Keybinds = Library.Keybinds or {}
-			-- (Регистрировать Keybinds[flag] нужно в Sections:Keybind и Toggle:Keybind)
 
 			return KeybindsList
 		end
