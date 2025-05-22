@@ -13,30 +13,6 @@ do
 		UnNamedFlags = 0;
 		ThemeObjects = {};
 		Holder = nil;
-
-		-- Темы интерфейса
-		Themes = {
-			dark = {
-				Main = Color3.fromRGB(20, 20, 20),       -- Основной фон (Inline)
-				Secondary = Color3.fromRGB(30, 30, 30),  -- Фон страниц (PageInline)
-				Outline = Color3.fromRGB(50, 50, 50),    -- Контуры элементов (Outline)
-				Text = Color3.fromRGB(255, 255, 255),    -- Цвет текста
-				TextStroke = 0,                          -- Обводка текста
-				BorderColor = Color3.fromRGB(0, 0, 0)    -- Цвет границы
-			},
-			light = {
-				Main = Color3.fromRGB(240, 240, 240),    -- Основной фон (Inline) - ближе к белому
-				Secondary = Color3.fromRGB(230, 230, 230), -- Фон страниц (PageInline) - светло-серый
-				Outline = Color3.fromRGB(200, 200, 200), -- Контуры элементов (Outline) - серый
-				Text = Color3.fromRGB(20, 20, 20),       -- Цвет текста - почти чёрный
-				TextStroke = 1,                          -- Обводка текста (1 = прозрачно)
-				BorderColor = Color3.fromRGB(150, 150, 150) -- Цвет границы - серый
-			}
-		},
-		
-		-- Текущая тема (по умолчанию тёмная)
-		CurrentTheme = "dark",
-		
 		Keys = {
 			[Enum.KeyCode.LeftShift] = "LShift",
 			[Enum.KeyCode.RightShift] = "RShift",
@@ -269,20 +245,15 @@ do
 		function Library:ChangeAccent(Color)
 			Library.Accent = Color
 
-			-- Исправляем цикл для корректного перебора элементов
-			for _, obj in ipairs(Library.ThemeObjects) do -- Используем ipairs для нумерованных таблиц
-				-- Проверяем, что obj действительно является объектом Instance перед вызовом IsA
-				if typeof(obj) == "Instance" then
-					if obj:IsA("TextButton") and Library.CurrentTheme == "light" then -- Применяем только для TextButton в светлой теме
-						obj.BackgroundColor3 = Color
-					elseif (obj:IsA("TextLabel") or obj:IsA("TextBox")) and Library.CurrentTheme == "light" then
-						obj.TextColor3 = Color
-					elseif (obj:IsA("ImageLabel") or obj:IsA("ImageButton")) and Library.CurrentTheme == "light" then
-						obj.ImageColor3 = Color
-					elseif obj:IsA("ScrollingFrame") and Library.CurrentTheme == "light" then
-						obj.ScrollBarImageColor3 = Color	
-					-- Добавьте другие типы элементов, если они должны использовать акцентный цвет
-					end
+			for obj, theme in next, Library.ThemeObjects do
+				if theme:IsA("Frame") or theme:IsA("TextButton") then
+					theme.BackgroundColor3 = Color
+				elseif theme:IsA("TextLabel") or theme:IsA("TextBox") then
+					theme.TextColor3 = Color
+				elseif theme:IsA("ImageLabel") or theme:IsA("ImageButton") then
+					theme.ImageColor3 = Color
+				elseif theme:IsA("ScrollingFrame") then
+					theme.ScrollBarImageColor3 = Library.Accent
 				end
 			end
 		end
@@ -653,97 +624,6 @@ do
 			
 			return configList
 		end
-
-		function Library:ChangeTheme(themeName)
-			-- Проверяем существование темы
-			if not self.Themes[themeName] then
-				return false
-			end
-			
-			-- Применяем новую тему
-			self.CurrentTheme = themeName
-			local theme = self.Themes[themeName]
-			
-			-- Сохраняем тему для всех будущих UI-элементов
-			Library.Theme = theme
-			
-			-- Обновляем все элементы UI
-			if not self.Holder then
-				return true -- Если UI еще не создан, просто возвращаем успех
-			end
-			
-			-- Применяем цвета к основным UI контейнерам
-			local mainContainer = self.Holder
-			if not mainContainer then return true end
-			
-			-- Основной контейнер
-			local inline = mainContainer:FindFirstChild("Inline")
-			if inline then
-				inline.BackgroundColor3 = theme.Main
-				inline.BorderColor3 = theme.BorderColor
-			end
-			
-			-- Рекурсивно обходим все UI элементы
-			local function applyThemeToElement(element)
-				-- Проверяем что элемент существует
-				if not element or typeof(element) ~= "Instance" then return end
-				
-				local name = element.Name or ""
-				
-				-- Обрабатываем различные элементы UI в зависимости от их имени или типа
-				if element:IsA("Frame") then
-					-- Контуры
-					if name:find("Outline") then
-						element.BackgroundColor3 = theme.Outline
-						element.BorderColor3 = theme.BorderColor
-					-- Внутренние элементы
-					elseif name:find("Inline") then  
-						element.BackgroundColor3 = theme.Main
-						element.BorderColor3 = theme.BorderColor
-					-- Страницы
-					elseif name == "PageInline" then
-						element.BackgroundColor3 = theme.Secondary
-						element.BorderColor3 = theme.BorderColor
-					end
-				
-				-- Текстовые элементы
-				elseif element:IsA("TextLabel") or element:IsA("TextButton") or element:IsA("TextBox") then
-					element.TextColor3 = theme.Text
-					element.TextStrokeTransparency = theme.TextStroke
-				end
-				
-				-- Рекурсивно обрабатываем все дочерние элементы
-				for _, child in ipairs(element:GetChildren()) do
-					applyThemeToElement(child)
-				end
-			end
-			
-			-- Применяем тему ко всему UI
-			applyThemeToElement(mainContainer)
-			
-			-- Также применяем тему к дополнительным HUD элементам
-			if Library.Indicator then
-				applyThemeToElement(Library.Indicator.Outline)
-			end
-			
-			if Library.Watermark then 
-				applyThemeToElement(Library.Watermark.Outline)
-			end
-			
-			if Library.StaffList then
-				applyThemeToElement(Library.StaffList.Outline)
-			end
-			
-			if Library.KeybindsList then
-				applyThemeToElement(Library.KeybindsList.Outline)
-			end
-			
-			-- Обновляем тему во всех компонентах системы
-			-- Переопределяем стандартные функции создания UI элементов,
-			-- чтобы при создании новых элементов они получали текущую тему
-			
-			return true
-		end
 	end;
 
 	-- // Colorpicker Element
@@ -754,9 +634,8 @@ do
 			--
 			Icon.Name = "Icon"
 			Icon.AnchorPoint = Vector2.new(0, 0.5)
-			-- Используем акцентный цвет для Icon в светлой теме, основной для темной
-			Icon.BackgroundColor3 = (Library.CurrentTheme == "light") and Library.Accent or Library.Theme.Main
-			Icon.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
+			Icon.BackgroundColor3 = default
+			Icon.BorderColor3 = Color3.fromRGB(50,50,50)
 			Icon.BorderSizePixel = 1
 			if count == 1 then
 				Icon.Position = UDim2.new(1, - (count * 21),0.5,0)
@@ -769,9 +648,9 @@ do
 			
 			local Outline4 = Instance.new("Frame")
 			Outline4.Name = "Outline"
-			Outline4.BackgroundColor3 = Library.Theme.Outline -- Используем цвет контура из текущей темы
+			Outline4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 			Outline4.BackgroundTransparency = 1
-			Outline4.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
+			Outline4.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			Outline4.BorderSizePixel = 0
 			Outline4.Position = UDim2.new(0, -1, 0, -1)
 			Outline4.Size = UDim2.new(1, 2, 1, 2)
@@ -785,8 +664,8 @@ do
 			local ColorWindow = Instance.new("Frame")
 			ColorWindow.Name = "ColorWindow"
 			ColorWindow.AnchorPoint = Vector2.new(0.5, 0.5)
-			ColorWindow.BackgroundColor3 = Library.Theme.Secondary -- Используем вторичный цвет темы для фона окна
-			ColorWindow.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
+			ColorWindow.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			ColorWindow.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			ColorWindow.Parent = Icon
 			ColorWindow.Position = UDim2.new(1,0,1,2)
 			ColorWindow.AnchorPoint = Vector2.new(1,0)
@@ -796,8 +675,8 @@ do
 
 			local ColorInline = Instance.new("Frame")
 			ColorInline.Name = "ColorInline"
-			ColorInline.BackgroundColor3 = Library.Theme.Main -- Используем основной цвет темы для внутреннего фрейма
-			ColorInline.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
+			ColorInline.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+			ColorInline.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			ColorInline.BorderSizePixel = 0
 			ColorInline.Position = UDim2.new(0, 1, 0, 1)
 			ColorInline.Size = UDim2.new(1, -2, 1, -2)
@@ -806,11 +685,11 @@ do
 			Color.Name = "Color"
 			Color.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
 			Color.Text = ""
-			Color.TextColor3 = Library.Theme.Text -- Используем цвет текста из текущей темы
+			Color.TextColor3 = Color3.fromRGB(0, 0, 0)
 			Color.TextSize = 14
 			Color.AutoButtonColor = false
-			Color.BackgroundColor3 = default -- Здесь оставляем default, так как это выбранный цвет
-			Color.BorderColor3 = Library.Theme.BorderColor -- Используем цвет границы из текущей темы
+			Color.BackgroundColor3 = default
+			Color.BorderColor3 = Color3.fromRGB(50, 50, 50)
 			Color.Position = UDim2.new(0, 6, 0, 6)
 			Color.Size = UDim2.new(1, -30, 1, -12)
 
@@ -1179,16 +1058,6 @@ do
 				Dragging = { false, UDim2.new(0, 0, 0, 0) };
 				Name = (Options.Name or Options.name or "Name");
 			};
-			
-			-- Установка темы из параметров или использование текущей
-			local themeName = Options.Theme or Options.theme or Library.CurrentTheme
-			if Library.Themes[themeName] then
-				Library.CurrentTheme = themeName
-			end
-			
-			-- Получаем текущую тему и сохраняем её для всех будущих элементов
-			local theme = Library.Themes[Library.CurrentTheme];
-			Library.Theme = theme;
 			--
 			local UI = Instance.new("ScreenGui", game:GetService("RunService"):IsStudio() and game.Players.LocalPlayer.PlayerGui or game.CoreGui)
 			UI.Name = "UI"
@@ -1209,8 +1078,8 @@ do
 
 			local Inline = Instance.new("Frame")
 			Inline.Name = "Inline"
-			Inline.BackgroundColor3 = theme.Main
-			Inline.BorderColor3 = theme.BorderColor
+			Inline.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			Inline.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			Inline.BorderSizePixel = 0
 			Inline.ClipsDescendants = false
 			Inline.Position = UDim2.new(0, 1, 0, 1)
@@ -1219,8 +1088,8 @@ do
 
 			local HolderOutline = Instance.new("Frame")
 			HolderOutline.Name = "HolderOutline"
-			HolderOutline.BackgroundColor3 = theme.Outline
-			HolderOutline.BorderColor3 = theme.BorderColor
+			HolderOutline.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			HolderOutline.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			HolderOutline.Position = UDim2.new(0, 6, 0, 22)
 			HolderOutline.Size = UDim2.new(1, -12, 1, -28)
 
@@ -1234,16 +1103,16 @@ do
 
 			local PageOutline = Instance.new("Frame")
 			PageOutline.Name = "PageOutline"
-			PageOutline.BackgroundColor3 = theme.Outline
-			PageOutline.BorderColor3 = theme.BorderColor
+			PageOutline.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			PageOutline.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			PageOutline.Position = UDim2.new(0, 4, 0, 26)
 			PageOutline.Size = UDim2.new(1, -8, 1, -30)
 			PageOutline.ZIndex = 6
 
 			local PageInline = Instance.new("Frame")
 			PageInline.Name = "PageInline"
-			PageInline.BackgroundColor3 = theme.Secondary
-			PageInline.BorderColor3 = theme.BorderColor
+			PageInline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+			PageInline.BorderColor3 = Color3.fromRGB(0, 0, 0)
 			PageInline.BorderSizePixel = 0
 			PageInline.Position = UDim2.new(0, 1, 0, 1)
 			PageInline.Size = UDim2.new(1, -2, 1, -2)
@@ -1278,9 +1147,9 @@ do
 			Title.Name = "Title"
 			Title.FontFace = Font.fromEnum(Enum.Font.RobotoMono)
 			Title.Text = Window.Name
-			Title.TextColor3 = theme.Text
+			Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 			Title.TextSize = 12
-			Title.TextStrokeTransparency = theme.TextStroke
+			Title.TextStrokeTransparency = 0
 			Title.TextXAlignment = Enum.TextXAlignment.Left
 			Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 			Title.BackgroundTransparency = 1
@@ -2027,6 +1896,7 @@ do
 					Mode = (Properties.mode or Properties.Mode or "Toggle"),
 					UseKey = (Properties.UseKey or false),
 					Ignore = (Properties.ignore or Properties.Ignore or false),
+					AvailableModes = (Properties.availableModes or {"Hold", "Toggle", "Always"}), -- Added new property
 					Callback = (
 						Properties.callback
 							or Properties.Callback
@@ -2292,6 +2162,168 @@ do
 				end)
 				--
 				Library:Connection(KInline.MouseButton2Down, function()
+					ModeBox.Visible = true
+					-- Update visibility of mode buttons based on AvailableModes
+					Hold.Visible = table.find(Keybind.AvailableModes, "Hold") or false
+					Toggle.Visible = table.find(Keybind.AvailableModes, "Toggle") or false
+					Always.Visible = table.find(Keybind.AvailableModes, "Always") or false
+				end)
+				--
+				Library:Connection(Hold.MouseButton1Click, function()
+					Keybind.Mode = "Hold"
+					Library.Flags[Keybind.Flag .. "_KEY STATE"] = "Hold" -- Update flag as well
+					ModeBox.Visible = false
+					-- Update text color of mode buttons
+					Hold.TextColor3 = Color3.fromRGB(255,255,255)
+					Toggle.TextColor3 = Color3.fromRGB(145,145,145)
+					Always.TextColor3 = Color3.fromRGB(145,145,145)
+				end)
+
+				Library:Connection(Toggle.MouseButton1Click, function()
+					Keybind.Mode = "Toggle"
+					Library.Flags[Keybind.Flag .. "_KEY STATE"] = "Toggle" -- Update flag as well
+					ModeBox.Visible = false
+					-- Update text color of mode buttons
+					Hold.TextColor3 = Color3.fromRGB(145,145,145)
+					Toggle.TextColor3 = Color3.fromRGB(255,255,255)
+					Always.TextColor3 = Color3.fromRGB(145,145,145)
+				end)
+
+				Library:Connection(Always.MouseButton1Click, function()
+					Keybind.Mode = "Always"
+					Library.Flags[Keybind.Flag .. "_KEY STATE"] = "Always" -- Update flag as well
+					ModeBox.Visible = false
+					-- Update text color of mode buttons
+					Hold.TextColor3 = Color3.fromRGB(145,145,145)
+					Toggle.TextColor3 = Color3.fromRGB(145,145,145)
+					Always.TextColor3 = Color3.fromRGB(255,255,255)
+				end)
+
+				-- Hide ModeBox when clicking outside (need a way to detect this, perhaps a transparent overlay or checking mouse position)
+				-- For simplicity for now, will assume it closes when a mode is selected.
+				-- A more robust solution might involve a global input handler.
+
+				local function set(newkey)
+					if string.find(tostring(newkey), "Enum") then
+						if c then
+							c:Disconnect()
+							if Keybind.Flag then
+								Library.Flags[Keybind.Flag] = false
+							end
+							Keybind.Callback(false) -- Callback with false when keybind is unset
+						end
+						Keybind.Binding = newkey
+						Value.Text = string.gsub(tostring(newkey), "Enum.KeyCode.", "")
+						-- Check the current mode and set the state accordingly
+						if Keybind.Mode == "Hold" then
+							c = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+								if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == newkey and not gp then
+									Library.Flags[Keybind.Flag] = true
+									Keybind.Callback(true)
+								end
+							end)
+							d = game:GetService("UserInputService").InputEnded:Connect(function(input, gp)
+								if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == newkey and not gp then
+									Library.Flags[Keybind.Flag] = false
+									Keybind.Callback(false)
+								end
+							end)
+						elseif Keybind.Mode == "Toggle" then
+							c = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+								if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == newkey and not gp then
+									State = not State
+									Library.Flags[Keybind.Flag] = State
+									Keybind.Callback(State)
+								end
+							end)
+						elseif Keybind.Mode == "Always" then
+							-- Always mode means the keybind is always active as long as it's bound
+							Library.Flags[Keybind.Flag] = true
+							Keybind.Callback(true)
+						end
+					else
+						warn("Invalid key code for keybind:", newkey)
+					end
+				end
+				--
+				local function updateKeyText()
+					Value.Text = string.gsub(tostring(Keybind.Mode), "Enum.KeyCode.", "")
+				end
+				--
+				set(Keybind.State)
+				set(Keybind.Mode)
+				updateKeyText()
+				KInline.MouseButton1Click:Connect(function()
+					if not Keybind.Binding then
+
+						Value.Text = "..."
+
+						Keybind.Binding = Library:Connection(
+							game:GetService("UserInputService").InputBegan,
+							function(input, gpe)
+								set(
+									input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
+										or input.UserInputType
+								)
+								Library:Disconnect(Keybind.Binding)
+								task.wait()
+								Keybind.Binding = nil
+							end
+						)
+					end
+				end)
+				--
+				Library:Connection(game:GetService("UserInputService").InputBegan, function(inp)
+					if (inp.KeyCode == Key or inp.UserInputType == Key) and not Keybind.Binding and not Keybind.UseKey then
+						if Keybind.Mode == "Hold" then
+							if Keybind.Flag then
+								Library.Flags[Keybind.Flag] = true
+							end
+							c = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+								if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Keybind.Key and not gp then
+									Library.Flags[Keybind.Flag] = true
+									Keybind.Callback(true)
+								end
+							end)
+							d = game:GetService("UserInputService").InputEnded:Connect(function(input, gp)
+								if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Keybind.Key and not gp then
+									Library.Flags[Keybind.Flag] = false
+									Keybind.Callback(false)
+								end
+							end)
+						elseif Keybind.Mode == "Toggle" then
+							State = not State
+							if Keybind.Flag then
+								Library.Flags[Keybind.Flag] = State
+							end
+							Keybind.Callback(State)
+						elseif Keybind.Mode == "Always" then
+							-- Always mode means the keybind is always active as long as it's bound
+							Library.Flags[Keybind.Flag] = true
+							Keybind.Callback(true)
+						end
+					end
+				end)
+				--
+				Library:Connection(game:GetService("UserInputService").InputEnded, function(inp)
+					if Keybind.Mode == "Hold" and not Keybind.UseKey then
+						if Key ~= "" or Key ~= nil then
+							if inp.KeyCode == Key or inp.UserInputType == Key then
+								if c then
+									c:Disconnect()
+									if Keybind.Flag then
+										Library.Flags[Keybind.Flag] = false
+									end
+									if Keybind.Callback then
+										Keybind.Callback(false)
+									end
+								end
+							end
+						end
+					end
+				end)
+				--
+				Library:Connection(Inline.MouseButton2Down, function()
 					ModeBox.Visible = true
 					NewToggle.ZIndex = 5
 				end)
@@ -3451,6 +3483,7 @@ do
 				Mode = (Properties.mode or Properties.Mode or "Toggle"),
 				UseKey = (Properties.UseKey or false),
 				Ignore = (Properties.ignore or Properties.Ignore or false),
+				AvailableModes = (Properties.availableModes or {"Hold", "Toggle", "Always"}), -- Added new property
 				Callback = (
 					Properties.callback
 						or Properties.Callback
@@ -3706,9 +3739,16 @@ do
 						if Keybind.Flag then
 							Library.Flags[Keybind.Flag] = true
 						end
-						c = Library:Connection(game:GetService("RunService").RenderStepped, function()
-							if Keybind.Callback then
+						c = game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+							if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Keybind.Key and not gp then
+								Library.Flags[Keybind.Flag] = true
 								Keybind.Callback(true)
+							end
+						end)
+						d = game:GetService("UserInputService").InputEnded:Connect(function(input, gp)
+							if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Keybind.Key and not gp then
+								Library.Flags[Keybind.Flag] = false
+								Keybind.Callback(false)
 							end
 						end)
 					elseif Keybind.Mode == "Toggle" then
@@ -3717,6 +3757,10 @@ do
 							Library.Flags[Keybind.Flag] = State
 						end
 						Keybind.Callback(State)
+					elseif Keybind.Mode == "Always" then
+						-- Always mode means the keybind is always active as long as it's bound
+						Library.Flags[Keybind.Flag] = true
+						Keybind.Callback(true)
 					end
 				end
 			end)
@@ -5566,6 +5610,24 @@ do
 			end)()
 
 			return KeybindsList
+		end
+
+		-- Method to set available modes for a keybind
+		function Library:SetKeybindAvailableModes(flag, modes)
+			if Library.Keybinds and Library.Keybinds[flag] then
+				-- Validate modes to ensure they are valid states
+				local validModes = {}
+				local allowedModes = {"Hold", "Toggle", "Always"}
+				for _, mode in ipairs(modes) do
+					if table.find(allowedModes, mode) then
+						table.insert(validModes, mode)
+					end
+				end
+				Library.Keybinds[flag].AvailableModes = validModes
+				warn("Keybind '" .. flag .. "' available modes updated to: ", validModes)
+			else
+				warn("Keybind with flag '" .. flag .. "' not found.")
+			end
 		end
 	end;
 end;
