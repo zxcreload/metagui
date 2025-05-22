@@ -13,6 +13,30 @@ do
 		UnNamedFlags = 0;
 		ThemeObjects = {};
 		Holder = nil;
+
+		-- Темы интерфейса
+		Themes = {
+			dark = {
+				Main = Color3.fromRGB(20, 20, 20),       -- Основной фон (Inline)
+				Secondary = Color3.fromRGB(30, 30, 30),  -- Фон страниц (PageInline)
+				Outline = Color3.fromRGB(50, 50, 50),    -- Контуры элементов (Outline)
+				Text = Color3.fromRGB(255, 255, 255),    -- Цвет текста
+				TextStroke = 0,                          -- Обводка текста
+				BorderColor = Color3.fromRGB(0, 0, 0)    -- Цвет границы
+			},
+			light = {
+				Main = Color3.fromRGB(235, 235, 235),    -- Основной фон (Inline)
+				Secondary = Color3.fromRGB(225, 225, 225), -- Фон страниц (PageInline)
+				Outline = Color3.fromRGB(205, 205, 205), -- Контуры элементов (Outline)
+				Text = Color3.fromRGB(20, 20, 20),       -- Цвет текста
+				TextStroke = 1,                          -- Обводка текста (1 = прозрачно)
+				BorderColor = Color3.fromRGB(155, 155, 155) -- Цвет границы
+			}
+		},
+		
+		-- Текущая тема (по умолчанию тёмная)
+		CurrentTheme = "dark",
+		
 		Keys = {
 			[Enum.KeyCode.LeftShift] = "LShift",
 			[Enum.KeyCode.RightShift] = "RShift",
@@ -624,6 +648,89 @@ do
 			
 			return configList
 		end
+
+		function Library:ChangeTheme(themeName)
+			-- Проверяем существование темы
+			if not self.Themes[themeName] then
+				return false
+			end
+			
+			-- Применяем новую тему
+			self.CurrentTheme = themeName
+			local theme = self.Themes[themeName]
+			
+			-- Обновляем все элементы UI
+			if self.Holder then
+				-- Основной контейнер
+				local inline = self.Holder:FindFirstChild("Inline")
+				if inline then 
+					inline.BackgroundColor3 = theme.Main
+					inline.BorderColor3 = theme.BorderColor
+				end
+				
+				-- Контейнер для страниц
+				local holder = inline and inline:FindFirstChild("HolderOutline")
+				if holder then
+					holder.BackgroundColor3 = theme.Outline
+					holder.BorderColor3 = theme.BorderColor
+					
+					local holderInline = holder:FindFirstChild("HolderInline")
+					if holderInline then
+						holderInline.BackgroundColor3 = theme.Main
+						holderInline.BorderColor3 = theme.BorderColor
+						
+						-- Находим PageOutline
+						local pageOutline = holderInline:FindFirstChild("PageOutline")
+						if pageOutline then
+							pageOutline.BackgroundColor3 = theme.Outline
+							pageOutline.BorderColor3 = theme.BorderColor
+							
+							-- Находим PageInline
+							local pageInline = pageOutline:FindFirstChild("PageInline")
+							if pageInline then
+								pageInline.BackgroundColor3 = theme.Secondary
+								pageInline.BorderColor3 = theme.BorderColor
+							end
+						end
+					end
+				end
+				
+				-- Обновляем текстовые элементы
+				local function updateTextElements(parent)
+					for _, child in pairs(parent:GetChildren()) do
+						if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+							child.TextColor3 = theme.Text
+							child.TextStrokeTransparency = theme.TextStroke
+						end
+						
+						-- Рекурсивно обрабатываем дочерние элементы
+						if #child:GetChildren() > 0 then
+							updateTextElements(child)
+						end
+					end
+				end
+				
+				updateTextElements(self.Holder)
+				
+				-- Обновляем цвета элементов UI (секций, переключателей и т.д.)
+				for _, page in pairs(self.Pages) do
+					for _, section in pairs(page.Sections) do
+						if section.Elements and section.Elements.SectionOutline then
+							section.Elements.SectionOutline.BackgroundColor3 = theme.Outline
+							section.Elements.SectionOutline.BorderColor3 = theme.BorderColor
+							
+							if section.Elements.SectionInline then
+								section.Elements.SectionInline.BackgroundColor3 = theme.Main
+								section.Elements.SectionInline.BorderColor3 = theme.BorderColor
+							end
+						end
+					end
+				end
+			end
+			
+			-- Также можно обновить другие элементы при необходимости
+			return true
+		end
 	end;
 
 	-- // Colorpicker Element
@@ -1058,6 +1165,15 @@ do
 				Dragging = { false, UDim2.new(0, 0, 0, 0) };
 				Name = (Options.Name or Options.name or "Name");
 			};
+			
+			-- Установка темы из параметров или использование текущей
+			local themeName = Options.Theme or Options.theme or Library.CurrentTheme
+			if Library.Themes[themeName] then
+				Library.CurrentTheme = themeName
+			end
+			
+			-- Получаем текущую тему
+			local theme = Library.Themes[Library.CurrentTheme];
 			--
 			local UI = Instance.new("ScreenGui", game:GetService("RunService"):IsStudio() and game.Players.LocalPlayer.PlayerGui or game.CoreGui)
 			UI.Name = "UI"
@@ -1078,8 +1194,8 @@ do
 
 			local Inline = Instance.new("Frame")
 			Inline.Name = "Inline"
-			Inline.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-			Inline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			Inline.BackgroundColor3 = theme.Main
+			Inline.BorderColor3 = theme.BorderColor
 			Inline.BorderSizePixel = 0
 			Inline.ClipsDescendants = false
 			Inline.Position = UDim2.new(0, 1, 0, 1)
@@ -1088,8 +1204,8 @@ do
 
 			local HolderOutline = Instance.new("Frame")
 			HolderOutline.Name = "HolderOutline"
-			HolderOutline.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-			HolderOutline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			HolderOutline.BackgroundColor3 = theme.Outline
+			HolderOutline.BorderColor3 = theme.BorderColor
 			HolderOutline.Position = UDim2.new(0, 6, 0, 22)
 			HolderOutline.Size = UDim2.new(1, -12, 1, -28)
 
@@ -1103,16 +1219,16 @@ do
 
 			local PageOutline = Instance.new("Frame")
 			PageOutline.Name = "PageOutline"
-			PageOutline.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-			PageOutline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			PageOutline.BackgroundColor3 = theme.Outline
+			PageOutline.BorderColor3 = theme.BorderColor
 			PageOutline.Position = UDim2.new(0, 4, 0, 26)
 			PageOutline.Size = UDim2.new(1, -8, 1, -30)
 			PageOutline.ZIndex = 6
 
 			local PageInline = Instance.new("Frame")
 			PageInline.Name = "PageInline"
-			PageInline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-			PageInline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			PageInline.BackgroundColor3 = theme.Secondary
+			PageInline.BorderColor3 = theme.BorderColor
 			PageInline.BorderSizePixel = 0
 			PageInline.Position = UDim2.new(0, 1, 0, 1)
 			PageInline.Size = UDim2.new(1, -2, 1, -2)
@@ -1147,9 +1263,9 @@ do
 			Title.Name = "Title"
 			Title.FontFace = Font.fromEnum(Enum.Font.RobotoMono)
 			Title.Text = Window.Name
-			Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+			Title.TextColor3 = theme.Text
 			Title.TextSize = 12
-			Title.TextStrokeTransparency = 0
+			Title.TextStrokeTransparency = theme.TextStroke
 			Title.TextXAlignment = Enum.TextXAlignment.Left
 			Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 			Title.BackgroundTransparency = 1
