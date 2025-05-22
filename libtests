@@ -1912,6 +1912,13 @@ do
 							or Library.NextFlag()
 					),
 					Binding = nil,
+					-- Добавляем поля для хранения UI элементов режимов
+					ModeUI = {
+						ModeBox = nil,
+						HoldButton = nil,
+						ToggleButton = nil,
+						AlwaysButton = nil,
+					},
 				}
 				
 				-- Регистрируем кейбинд для KeybindsList
@@ -1919,10 +1926,9 @@ do
 					Library.Keybinds = {}
 				end
 				
-				Library.Keybinds[Keybind.Flag] = {
-					Name = self.Name,
-					Mode = Keybind.Mode
-				}
+				-- Сохраняем весь объект кейбинда для доступа к его UI и свойствам
+				Library.Keybinds[Keybind.Flag] = Keybind
+
 				local Key
 				local State = false
 				--
@@ -1930,6 +1936,19 @@ do
 				local Hold = Instance.new("TextButton")
 				local Toggle = Instance.new("TextButton")
 				local Always = Instance.new("TextButton")
+				-- Присваиваем UI элементы соответствующим полям в объекте Keybind
+				Keybind.ModeUI.ModeBox = ModeBox
+				Keybind.ModeUI.HoldButton = Hold
+				Keybind.ModeUI.ToggleButton = Toggle
+				Keybind.ModeUI.AlwaysButton = Always
+
+				-- Функция для обновления видимости кнопок режимов
+				function Keybind:UpdateModeUI()
+					self.ModeUI.HoldButton.Visible = table.find(self.AvailableModes, "Hold") or false
+					self.ModeUI.ToggleButton.Visible = table.find(self.AvailableModes, "Toggle") or false
+					self.ModeUI.AlwaysButton.Visible = table.find(self.AvailableModes, "Always") or false
+				end
+
 				--
 				local kOutline = Instance.new("Frame")
 				kOutline.Name = "Outline"
@@ -2098,29 +2117,31 @@ do
 						end
 						Keybind.Callback(newkey)
 					end
-				end
+
+					Keybind:UpdateModeUI() -- Вызываем обновление видимости после установки режима
+					end
 				--
 				set(Keybind.State)
 				set(Keybind.Mode)
 				KInline.MouseButton1Click:Connect(function()
 					if not Keybind.Binding then
 
-						Value.Text = "..."
+							Value.Text = "..."
 
-						Keybind.Binding = Library:Connection(
-							game:GetService("UserInputService").InputBegan,
-							function(input, gpe)
-								set(
-									input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
-										or input.UserInputType
-								)
-								Library:Disconnect(Keybind.Binding)
-								task.wait()
-								Keybind.Binding = nil
-							end
-						)
-					end
-				end)
+							Keybind.Binding = Library:Connection(
+								game:GetService("UserInputService").InputBegan,
+								function(input, gpe)
+									set(
+										input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
+											or input.UserInputType
+									)
+									Library:Disconnect(Keybind.Binding)
+									task.wait()
+									Keybind.Binding = nil
+								end
+							)
+						end
+					end)
 				--
 				Library:Connection(game:GetService("UserInputService").InputBegan, function(inp)
 					if (inp.KeyCode == Key or inp.UserInputType == Key) and not Keybind.Binding and not Keybind.UseKey then
@@ -2253,25 +2274,26 @@ do
 				set(Keybind.State)
 				set(Keybind.Mode)
 				updateKeyText()
+				Keybind:UpdateModeUI() -- Вызываем обновление видимости при создании кейбинда
 				KInline.MouseButton1Click:Connect(function()
 					if not Keybind.Binding then
 
-						Value.Text = "..."
+							Value.Text = "..."
 
-						Keybind.Binding = Library:Connection(
-							game:GetService("UserInputService").InputBegan,
-							function(input, gpe)
-								set(
-									input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
-										or input.UserInputType
-								)
-								Library:Disconnect(Keybind.Binding)
-								task.wait()
-								Keybind.Binding = nil
-							end
-						)
-					end
-				end)
+							Keybind.Binding = Library:Connection(
+								game:GetService("UserInputService").InputBegan,
+								function(input, gpe)
+									set(
+										input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
+											or input.UserInputType
+									)
+									Library:Disconnect(Keybind.Binding)
+									task.wait()
+									Keybind.Binding = nil
+								end
+							)
+						end
+					end)
 				--
 				Library:Connection(game:GetService("UserInputService").InputBegan, function(inp)
 					if (inp.KeyCode == Key or inp.UserInputType == Key) and not Keybind.Binding and not Keybind.UseKey then
@@ -3499,6 +3521,13 @@ do
 						or Library.NextFlag()
 				),
 				Binding = nil,
+				-- Добавляем поля для хранения UI элементов режимов
+				ModeUI = {
+					ModeBox = nil,
+					HoldButton = nil,
+					ToggleButton = nil,
+					AlwaysButton = nil,
+				},
 			}
 			
 			-- Регистрируем кейбинд для KeybindsList
@@ -3506,10 +3535,9 @@ do
 				Library.Keybinds = {}
 			end
 			
-			Library.Keybinds[Keybind.Flag] = {
-				Name = Keybind.Name,
-				Mode = Keybind.Mode
-			}
+			-- Сохраняем весь объект кейбинда для доступа к его UI и свойствам
+			Library.Keybinds[Keybind.Flag] = Keybind
+
 			local Key
 			local State = false
 			--
@@ -3517,6 +3545,12 @@ do
 			local Hold = Instance.new("TextButton")
 			local Toggle = Instance.new("TextButton")
 			local Always = Instance.new("TextButton")
+			-- Присваиваем UI элементы соответствующим полям в объекте Keybind
+			Keybind.ModeUI.ModeBox = ModeBox
+			Keybind.ModeUI.HoldButton = Hold
+			Keybind.ModeUI.ToggleButton = Toggle
+			Keybind.ModeUI.AlwaysButton = Always
+
 			--
 			local NewBind = Instance.new("Frame")
 			NewBind.Name = "NewBind"
@@ -3709,29 +3743,31 @@ do
 					end
 					Keybind.Callback(newkey)
 				end
-			end
+
+				Keybind:UpdateModeUI() -- Вызываем обновление видимости после установки режима
+				end
 			--
 			set(Keybind.State)
 			set(Keybind.Mode)
 			Inline.MouseButton1Click:Connect(function()
 				if not Keybind.Binding then
 
-					Value.Text = "..."
+						Value.Text = "..."
 
-					Keybind.Binding = Library:Connection(
-						game:GetService("UserInputService").InputBegan,
-						function(input, gpe)
-							set(
-								input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
-									or input.UserInputType
-							)
-							Library:Disconnect(Keybind.Binding)
-							task.wait()
-							Keybind.Binding = nil
-						end
-					)
-				end
-			end)
+						Keybind.Binding = Library:Connection(
+							game:GetService("UserInputService").InputBegan,
+							function(input, gpe)
+								set(
+									input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode
+										or input.UserInputType
+								)
+								Library:Disconnect(Keybind.Binding)
+								task.wait()
+								Keybind.Binding = nil
+							end
+						)
+					end
+				end)
 			--
 			Library:Connection(game:GetService("UserInputService").InputBegan, function(inp)
 				if (inp.KeyCode == Key or inp.UserInputType == Key) and not Keybind.Binding and not Keybind.UseKey then
@@ -3836,6 +3872,84 @@ do
 
 			-- // Returning
 			return Keybind
+		end
+
+		function Toggle:Colorpicker(Properties)
+			local Properties = Properties or {}
+			local Colorpicker = {
+				State = (
+					Properties.state
+						or Properties.State
+						or Properties.def
+						or Properties.Def
+						or Properties.default
+			function Toggle:Colorpicker(Properties)
+				local Properties = Properties or {}
+				local Colorpicker = {
+					State = (
+						Properties.state
+							or Properties.State
+							or Properties.def
+							or Properties.Def
+							or Properties.default
+							or Properties.Default
+							or Color3.fromRGB(255, 0, 0)
+					),
+					Alpha = (
+						Properties.alpha
+							or Properties.Alpha
+							or Properties.transparency
+							or Properties.Transparency
+							or 1
+					),
+					Callback = (
+						Properties.callback
+							or Properties.Callback
+							or Properties.callBack
+							or Properties.CallBack
+							or function() end
+					),
+					Flag = (
+						Properties.flag
+							or Properties.Flag
+							or Properties.pointer
+							or Properties.Pointer
+							or Library.NextFlag()
+					),
+				}
+				-- // Functions
+				Toggle.Colorpickers = Toggle.Colorpickers + 1
+				local colorpickertypes = Library:NewPicker(
+					"",
+					Colorpicker.State,
+					Colorpicker.Alpha,
+					NewToggle,
+					Toggle.Colorpickers,
+					Colorpicker.Flag,
+					Colorpicker.Callback
+				)
+
+				function Colorpicker:Set(color)
+					colorpickertypes:set(color)
+				end
+
+				-- // Returning
+				return Colorpicker
+			end
+
+			-- // Misc Functions
+			function Toggle.Set(bool)
+				bool = type(bool) == "boolean" and bool or false
+				if Toggle.Toggled ~= bool then
+					SetState()
+				end
+			end
+			Toggle.Set(Toggle.State)
+			Library.Flags[Toggle.Flag] = Toggle.State
+			Flags[Toggle.Flag] = Toggle.Set
+
+			-- // Returning
+			return Toggle
 		end
 		--
 		function Sections:Textbox(Properties)
@@ -5615,6 +5729,7 @@ do
 		-- Method to set available modes for a keybind
 		function Library:SetKeybindAvailableModes(flag, modes)
 			if Library.Keybinds and Library.Keybinds[flag] then
+				local keybind = Library.Keybinds[flag] -- Получаем объект кейбинда
 				-- Validate modes to ensure they are valid states
 				local validModes = {}
 				local allowedModes = {"Hold", "Toggle", "Always"}
@@ -5623,7 +5738,25 @@ do
 						table.insert(validModes, mode)
 					end
 				end
-				Library.Keybinds[flag].AvailableModes = validModes
+				-- Проверяем, что validModes не пустой, чтобы всегда был хотя бы один режим
+				if #validModes == 0 then
+					warn("SetKeybindAvailableModes: No valid modes provided for flag '" .. flag .. "'. Keeping current modes.")
+					return
+				end
+				keybind.AvailableModes = validModes -- Обновляем список доступных режимов в объекте кейбинда
+				
+				-- Убедимся, что текущий режим включен в новый список доступных режимов
+				if not table.find(validModes, keybind.Mode) then
+					-- Если текущий режим больше недоступен, устанавливаем первый доступный режим
+					local newMode = validModes[1]
+					keybind:set(newMode) -- Используем существующий метод set для смены режима и обновления UI/флага
+				end
+
+				-- Обновляем видимость кнопок режимов UI
+				if keybind.ModeUI and keybind.UpdateModeUI then
+					keybind:UpdateModeUI() -- Вызываем метод обновления UI у найденного объекта кейбинда
+				end
+
 				warn("Keybind '" .. flag .. "' available modes updated to: ", validModes)
 			else
 				warn("Keybind with flag '" .. flag .. "' not found.")
