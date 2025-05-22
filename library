@@ -1912,6 +1912,16 @@ do
 					),
 					Binding = nil,
 				}
+				
+				-- Регистрируем кейбинд для KeybindsList
+				if not Library.Keybinds then
+					Library.Keybinds = {}
+				end
+				
+				Library.Keybinds[Keybind.Flag] = {
+					Name = self.Name,
+					Mode = Keybind.Mode
+				}
 				local Key
 				local State = false
 				--
@@ -3325,6 +3335,16 @@ do
 						or Library.NextFlag()
 				),
 				Binding = nil,
+			}
+			
+			-- Регистрируем кейбинд для KeybindsList
+			if not Library.Keybinds then
+				Library.Keybinds = {}
+			end
+			
+			Library.Keybinds[Keybind.Flag] = {
+				Name = Keybind.Name,
+				Mode = Keybind.Mode
 			}
 			local Key
 			local State = false
@@ -5181,6 +5201,241 @@ do
 			return StaffList
 		end
 		--
+		function Library:KeybindsList(Properties)
+			local KeybindsList = {
+				Title = Properties.Name or Properties.name or "Keybinds List";
+				Elements = {}; -- UI элементы
+				ShownFlags = Properties.Flags or {}; -- Список флагов кейбиндов для отображения
+				Dragging = { false, UDim2.new(0, 0, 0, 0) };
+				Visible = false;
+			}
+
+			-- Main container
+			local Outline = Instance.new("TextButton")
+			Outline.Name = "Outline"
+			Outline.AutomaticSize = Enum.AutomaticSize.Y
+			Outline.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			Outline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			Outline.Position = UDim2.new(0.5, 0, 0.5, 0)
+			Outline.Size = UDim2.new(0, 200, 0, 15)
+			Outline.AnchorPoint = Vector2.new(0.5, 0.5)
+			Outline.Parent = Library.ScreenGUI
+			Outline.Visible = false
+			Outline.Text = ""
+			Outline.AutoButtonColor = false
+			Outline.ZIndex = 10000
+
+			local Inline = Instance.new("Frame")
+			Inline.Name = "Inline"
+			Inline.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			Inline.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			Inline.BorderSizePixel = 0
+			Inline.Position = UDim2.new(0, 1, 0, 1)
+			Inline.Size = UDim2.new(1, -2, 1, -2)
+			Inline.ZIndex = 10000
+
+			local Title = Instance.new("TextLabel")
+			Title.Name = "Title"
+			Title.FontFace = Font.fromEnum(Enum.Font.RobotoMono)
+			Title.Text = KeybindsList.Title
+			Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+			Title.TextSize = 12
+			Title.TextStrokeTransparency = 0
+			Title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			Title.BackgroundTransparency = 1
+			Title.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			Title.BorderSizePixel = 0
+			Title.Position = UDim2.new(0, 0, 0, 2)
+			Title.Size = UDim2.new(1, 0, 0, 15)
+			Title.ZIndex = 10000
+			Title.Parent = Inline
+
+			local ListContainer = Instance.new("Frame")
+			ListContainer.Name = "ListContainer"
+			ListContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+			ListContainer.BackgroundTransparency = 1
+			ListContainer.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			ListContainer.BorderSizePixel = 0
+			ListContainer.Position = UDim2.new(0, 0, 0, 17)
+			ListContainer.Size = UDim2.new(1, 0, 0, 0)
+			ListContainer.AutomaticSize = Enum.AutomaticSize.Y
+			ListContainer.ZIndex = 10000
+			ListContainer.Parent = Inline
+
+			local UIListLayout = Instance.new("UIListLayout")
+			UIListLayout.Name = "UIListLayout"
+			UIListLayout.Padding = UDim.new(0, 2)
+			UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			UIListLayout.Parent = ListContainer
+
+			local UIPadding = Instance.new("UIPadding")
+			UIPadding.Name = "UIPadding"
+			UIPadding.PaddingBottom = UDim.new(0, 6)
+			UIPadding.PaddingTop = UDim.new(0, 0)
+			UIPadding.Parent = ListContainer
+
+			-- Bottom padding
+			local UIPadding1 = Instance.new("UIPadding")
+			UIPadding1.Name = "UIPadding"
+			UIPadding1.PaddingBottom = UDim.new(0, 6)
+			UIPadding1.Parent = Inline
+
+			Inline.Parent = Outline
+
+			local Accent = Library:NewInstance("Frame", true)
+			Accent.Name = "Accent"
+			Accent.BackgroundColor3 = Library.Accent
+			Accent.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			Accent.BorderSizePixel = 0
+			Accent.Size = UDim2.new(1, 0, 0, 1)
+			Accent.ZIndex = 10000
+			Accent.Parent = Outline
+
+			-- Dragging logic
+			Library:Connection(Outline.MouseButton1Down, function()
+				local Location = game:GetService("UserInputService"):GetMouseLocation()
+				KeybindsList.Dragging[1] = true
+				KeybindsList.Dragging[2] = UDim2.new(0, Location.X - Outline.AbsolutePosition.X, 0, Location.Y - Outline.AbsolutePosition.Y)
+			end)
+			Library:Connection(game:GetService("UserInputService").InputEnded, function(Input)
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 and KeybindsList.Dragging[1] then
+					KeybindsList.Dragging[1] = false
+					KeybindsList.Dragging[2] = UDim2.new(0, 0, 0, 0)
+				end
+			end)
+			Library:Connection(game:GetService("UserInputService").InputChanged, function(Input)
+				local Location = game:GetService("UserInputService"):GetMouseLocation()
+				if KeybindsList.Dragging[1] then
+					Outline.Position = UDim2.new(
+						0,
+						Location.X - KeybindsList.Dragging[2].X.Offset + (Outline.Size.X.Offset * Outline.AnchorPoint.X),
+						0,
+						Location.Y - KeybindsList.Dragging[2].Y.Offset + (Outline.Size.Y.Offset * Outline.AnchorPoint.Y)
+					)
+				end
+			end)
+
+			-- Инициализируем реестр кейбиндов, если не было
+			if not Library.Keybinds then 
+				Library.Keybinds = {}
+				
+				-- Проверяем существующие флаги на наличие кейбиндов (для совместимости)
+				-- Регистрируем все существующие кейбинды в Flags
+				for flag, _ in pairs(Library.Flags) do
+					-- Если это флаг кейбинда (_KEY)
+					if string.find(flag, "_KEY$") then
+						local baseFlag = string.sub(flag, 1, #flag - 4) -- Убираем "_KEY"
+						if not Library.Keybinds[baseFlag] then
+							Library.Keybinds[baseFlag] = {
+								Name = baseFlag,
+								Mode = Library.Flags[baseFlag .. "_KEY STATE"] or "Toggle"
+							}
+						end
+					end
+				end
+			end
+
+			-- Методы
+			function KeybindsList:SetVisible(State)
+				self.Visible = State
+				Outline.Visible = State
+				if not State then
+					self:ClearAll()
+				else
+					self:UpdateList()
+				end
+			end
+
+			function KeybindsList:SetPosition(Position)
+				if Position == "top" then
+					Outline.Position = UDim2.new(0.5, 0, 0, 50)
+				elseif Position == "bottom" then
+					Outline.Position = UDim2.new(0.5, 0, 1, -50)
+				elseif Position == "left" then
+					Outline.Position = UDim2.new(0, 50, 0.5, 0)
+				elseif Position == "right" then
+					Outline.Position = UDim2.new(1, -50, 0.5, 0)
+				end
+			end
+
+			function KeybindsList:SetFlags(flags)
+				self.ShownFlags = flags or {}
+				self:UpdateList()
+			end
+
+			function KeybindsList:ClearAll()
+				for _, element in pairs(self.Elements) do
+					if element and element.Parent then
+						element:Destroy()
+					end
+				end
+				self.Elements = {}
+			end
+
+			function KeybindsList:UpdateList()
+				if not self.Visible then return end
+				self:ClearAll()
+				
+				-- Список флагов для отображения
+				local flags = self.ShownFlags or {}
+				for _, flag in ipairs(flags) do
+					-- Получаем информацию о кейбинде
+					local key = Library.Flags[flag .. "_KEY"]
+					if key then -- Проверяем существование кейбинда
+						-- Если кейбинд существует, но не зарегистрирован, создаем запись
+						if not Library.Keybinds[flag] then
+							Library.Keybinds[flag] = {
+								Name = flag,
+								Mode = Library.Flags[flag .. "_KEY STATE"] or "Toggle"
+							}
+						end
+						
+						local keybindData = Library.Keybinds[flag]
+						local name = keybindData.Name or flag
+						local mode = Library.Flags[flag .. "_KEY STATE"] or keybindData.Mode or "Toggle"
+						
+						-- Преобразуем ключ в текст
+						local keyText 
+						if typeof(key) == "EnumItem" then 
+							keyText = string.gsub(tostring(key), "Enum.KeyCode.", "") 
+						elseif typeof(key) == "string" then
+							keyText = key:gsub("Enum.KeyCode.", "")
+						else
+							keyText = tostring(key)
+						end
+						
+						-- UI элемент
+						local Entry = Instance.new("TextLabel")
+						Entry.Name = "KeybindEntry"
+						Entry.FontFace = Font.fromEnum(Enum.Font.RobotoMono)
+						Entry.Text = string.format("%s: %s", name, keyText)
+						Entry.TextColor3 = Color3.fromRGB(255, 255, 255)
+						Entry.TextSize = 12
+						Entry.TextStrokeTransparency = 0
+						Entry.TextXAlignment = Enum.TextXAlignment.Left
+						Entry.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+						Entry.BorderColor3 = Color3.fromRGB(0, 0, 0)
+						Entry.BorderSizePixel = 0
+						Entry.Size = UDim2.new(1, 0, 0, 20)
+						Entry.ZIndex = 10000
+						Entry.Parent = ListContainer
+						table.insert(self.Elements, Entry)
+					end
+				end
+			end
+
+			-- Автообновление
+			coroutine.wrap(function()
+				while true do
+					wait(0.2)
+					if KeybindsList.Visible then
+						KeybindsList:UpdateList()
+					end
+				end
+			end)()
+
+			return KeybindsList
+		end
 	end;
 end;
 
