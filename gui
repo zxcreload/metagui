@@ -742,10 +742,12 @@ PlayerFeaturesSection:Keybind({
                 state = true
                 createVisualClone()
                 Script.Functions.FFlagDesync()
+                Library:Notification("Desync Enabled", 1)
             end
         else
             if state then -- Only reset if currently active
                 resetClone()
+                Library:Notification("Desync Disabled", 1)
             end
         end
     end
@@ -880,10 +882,12 @@ PlayerFeaturesSection:Keybind({
                 blinkState = true
                 blinkThread = coroutine.create(runBlinkCycle)
                 coroutine.resume(blinkThread)
+                Library:Notification("Blink Enabled", 1)
             end
         else
             if blinkState then
                 resetBlink()
+                Library:Notification("Blink Disabled", 1)
             end
         end
     end
