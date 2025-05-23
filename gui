@@ -1,6 +1,20 @@
 -- Load the MetaGUI library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/zxcreload/metagui/refs/heads/main/library"))()
 
+-- Initialize anti-cheat bypass
+for _, v in pairs(getgc(true)) do
+    if type(v) == "table" then
+        setreadonly(v, false)
+        local indexInstance = rawget(v, "indexInstance")
+        if type(indexInstance) == "table" and indexInstance[1] == "kick" then
+            setreadonly(indexInstance, false)
+            rawset(v, "Table", {"kick", function() coroutine.yield() end})
+            warn("\n---[ INFO ]---\nBypassed Adonis Anti-Cheat/Anti-Exploit.\nMethod: Prevented Script Table Communication With Server.")
+            break
+        end
+    end
+end
+
 -- Create a window
 local Window = Library:Window({
     Name = "FULL.SKID"
@@ -987,6 +1001,10 @@ end
 -- Variable to hold the Anti AFK connection
 local antiAfkConnection = nil
 
+-- Variables for Destroy Cheaters
+local destroyCheatersEnabled = false
+local finobe2 = nil
+
 -- Anti AFK Toggle
 FeaturesSection:Toggle({
     Name = "Anti AFK",
@@ -1011,3 +1029,49 @@ FeaturesSection:Toggle({
         end
     end
 })
+
+-- Destroy Cheaters Toggle
+FeaturesSection:Toggle({
+    Name = "Destroy Cheaters",
+    Default = false,
+    Flag = "DestroyCheatersEnabled",
+    Callback = function(value)
+        destroyCheatersEnabled = value
+        getgenv().Finobe1 = value
+        
+        if value then
+            Library:Notification("Destroy Cheaters Enabled", 1)
+        end
+    end
+})
+
+-- Initialize Destroy Cheaters functionality
+local NewCFrame = CFrame.new
+local LocalFinobe = game:GetService("Players").LocalPlayer
+local Runfinobe = game:GetService("RunService")
+
+Runfinobe.Heartbeat:Connect(function()
+    if LocalFinobe.Character and destroyCheatersEnabled then
+        local FinobeChar = LocalFinobe.Character.HumanoidRootPart
+        local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
+        
+        if getgenv().Finobe1 then
+            finobe2 = FinobeChar.CFrame
+            FinobeChar.CFrame = Offset
+            Runfinobe.RenderStepped:Wait()
+            FinobeChar.CFrame = finobe2
+        end
+    end
+end)
+
+local hook
+hook = hookmetamethod(game, "__index", newcclosure(function(self, key)
+    if not checkcaller() then
+        if key == "CFrame" and getgenv().Finobe1 and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") and LocalFinobe.Character:FindFirstChild("Humanoid") and LocalFinobe.Character:FindFirstChild("Humanoid").Health > 0 then
+            if self == LocalFinobe.Character.HumanoidRootPart and finobe2 ~= nil then
+                return finobe2
+            end
+        end
+    end
+    return hook(self, key)
+end))
