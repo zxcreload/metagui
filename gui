@@ -1201,3 +1201,53 @@ FeaturesSection:Toggle({
         end
     end
 })
+
+-- Initialize original display names storage
+local originalDisplayNames = {}
+
+-- Create OnlyRobloname toggle in Features section
+FeaturesSection:Toggle({
+    Name = "Only DefaultName",
+    Default = false,
+    Flag = "OnlyRoblonameEnabled",
+    Callback = function(value)
+        if value then
+            pcall(function()
+                for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                    if v.Character and v.Character:FindFirstChild("Humanoid") then
+                        -- Store original display name before changing
+                        originalDisplayNames[v.Name] = v.Character:FindFirstChild("Humanoid").DisplayName
+                        -- Set to original name
+                        v.Character:FindFirstChild("Humanoid").DisplayName = v.Name
+                    end
+                end
+            end)
+            -- Handle new players joining
+            game:GetService("Players").PlayerAdded:Connect(function(player)
+                if player.Character then
+                    if player.Character:FindFirstChild("Humanoid") then
+                        originalDisplayNames[player.Name] = player.Character:FindFirstChild("Humanoid").DisplayName
+                        player.Character:FindFirstChild("Humanoid").DisplayName = player.Name
+                    end
+                end
+                player.CharacterAdded:Connect(function(char)
+                    if char:FindFirstChild("Humanoid") then
+                        originalDisplayNames[player.Name] = char:FindFirstChild("Humanoid").DisplayName
+                        char:FindFirstChild("Humanoid").DisplayName = player.Name
+                    end
+                end)
+            end)
+        else
+            pcall(function()
+                for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                    if v.Character and v.Character:FindFirstChild("Humanoid") then
+                        -- Restore original display name
+                        if originalDisplayNames[v.Name] then
+                            v.Character:FindFirstChild("Humanoid").DisplayName = originalDisplayNames[v.Name]
+                        end
+                    end
+                end
+            end)
+        end
+    end
+})
