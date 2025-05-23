@@ -811,6 +811,29 @@ local DesyncToggle = PlayerFeaturesSection:Toggle({
     end
 })
 
+-- Create Auto Blink toggle
+PlayerFeaturesSection:Toggle({
+    Name = "Auto Blink",
+    Default = false,
+    Flag = "AutoBlinkEnabled",
+    Callback = function(Value)
+        -- Auto blink logic will be handled in the heartbeat loop
+    end
+})
+
+-- Create Blink Latency textbox
+PlayerFeaturesSection:Textbox({
+    Name = "Blink Latency (s)",
+    Flag = "BlinkLatency",
+    Default = "0.5",
+    Callback = function(Value)
+        local numberValue = tonumber(Value)
+        if numberValue then
+            Library.Flags["BlinkLatency"] = math.max(0.1, numberValue) -- Minimum 0.1s latency
+        end
+    end
+})
+
 -- Create Desync keybind
 PlayerFeaturesSection:Keybind({
     Name = "Desync Key",
@@ -840,10 +863,29 @@ PlayerFeaturesSection:Keybind({
 -- Save initial FFlags
 Script.Functions.SaveDefaultFFlags()
 
+-- Initialize last blink time
+local lastBlinkTime = os.clock()
+
 -- Continue heartbeat monitoring
 RunService.Heartbeat:Connect(function()
     if state and humanoid.Health > 0 then
         Script.Functions.FFlagDesync()
+
+        -- Handle auto blink
+        if Library.Flags["AutoBlinkEnabled"] and Library.Flags["DesyncEnabled"] then
+            local currentTime = os.clock()
+            local blinkLatency = tonumber(Library.Flags["BlinkLatency"]) or 0.5
+
+            if currentTime - lastBlinkTime >= blinkLatency then
+                -- Reset and immediately reactivate desync to create blink effect
+                resetClone()
+                task.wait() -- Small wait to ensure reset is processed
+                state = true
+                createVisualClone()
+                Script.Functions.FFlagDesync()
+                lastBlinkTime = currentTime
+            end
+        end
     elseif state and humanoid.Health <= 0 then
         resetClone()
     end
