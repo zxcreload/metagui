@@ -1120,3 +1120,49 @@ FeaturesSection:Toggle({
         end
     end
 })
+
+-- Initialize Movement Features variables
+local savedSeats = {}
+local antiSitEnabled = false
+
+-- Create Anti Sit toggle
+MovementFeaturesSection:Toggle({
+    Name = "Anti Sit",
+    Default = false,
+    Flag = "AntiSitEnabled",
+    Callback = function(value)
+        antiSitEnabled = value
+        
+        if value then
+            -- Store and remove seats
+            savedSeats = {}
+            for _, object in pairs(game:GetDescendants()) do
+                if object:IsA("Seat") or object:IsA("VehicleSeat") then
+                    table.insert(savedSeats, {
+                        object = object,
+                        parent = object.Parent,
+                        properties = {
+                            CFrame = object.CFrame,
+                            Anchored = object.Anchored,
+                            CanCollide = object.CanCollide
+                        }
+                    })
+                    object.Parent = nil -- Скрываем объект вместо удаления
+                end
+            end
+            Library:Notification("Anti Sit Enabled", 1)
+        else
+            -- Restore seats
+            for _, seatData in ipairs(savedSeats) do
+                if seatData.object and seatData.parent then
+                    seatData.object.CFrame = seatData.properties.CFrame
+                    seatData.object.Anchored = seatData.properties.Anchored
+                    seatData.object.CanCollide = seatData.properties.CanCollide
+                    seatData.object.Parent = seatData.parent
+                end
+            end
+            savedSeats = {}
+            Library:Notification("Anti Sit Disabled", 1)
+        end
+    end
+})
