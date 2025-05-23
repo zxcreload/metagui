@@ -1030,36 +1030,49 @@ FeaturesSection:Toggle({
     end
 })
 
+-- Initialize Destroy Cheaters variables
+local NewCFrame = CFrame.new
+local LocalFinobe = game:GetService("Players").LocalPlayer
+local Runfinobe = game:GetService("RunService")
+local destroyCheatersEnabled = false
+local finobe2 = nil
+
 -- Destroy Cheaters Toggle
 FeaturesSection:Toggle({
     Name = "Destroy Cheaters",
     Default = false,
     Flag = "DestroyCheatersEnabled",
     Callback = function(value)
+        if not value and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") and finobe2 then
+            -- При выключении возвращаем в исходную позицию перед отключением
+            LocalFinobe.Character.HumanoidRootPart.CFrame = finobe2
+            finobe2 = nil
+        end
+        
         destroyCheatersEnabled = value
         getgenv().Finobe1 = value
         
         if value then
             Library:Notification("Destroy Cheaters Enabled", 1)
+        else
+            Library:Notification("Destroy Cheaters Disabled", 1)
         end
     end
 })
 
--- Initialize Destroy Cheaters functionality
-local NewCFrame = CFrame.new
-local LocalFinobe = game:GetService("Players").LocalPlayer
-local Runfinobe = game:GetService("RunService")
-
+-- Create the connection
 Runfinobe.Heartbeat:Connect(function()
     if LocalFinobe.Character and destroyCheatersEnabled then
-        local FinobeChar = LocalFinobe.Character.HumanoidRootPart
-        local Offset = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
-        
-        if getgenv().Finobe1 then
-            finobe2 = FinobeChar.CFrame
-            FinobeChar.CFrame = Offset
-            Runfinobe.RenderStepped:Wait()
-            FinobeChar.CFrame = finobe2
+        local FinobeChar = LocalFinobe.Character:FindFirstChild("HumanoidRootPart")
+        if FinobeChar then
+            if getgenv().Finobe1 then
+                finobe2 = FinobeChar.CFrame
+                FinobeChar.CFrame = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
+                Runfinobe.RenderStepped:Wait()
+                if destroyCheatersEnabled then
+                    FinobeChar.CFrame = finobe2
+                end
+            end
         end
     end
 end)
@@ -1075,3 +1088,35 @@ hook = hookmetamethod(game, "__index", newcclosure(function(self, key)
     end
     return hook(self, key)
 end))
+
+-- Wait for game to load (auto-execute support)
+if not game:IsLoaded() then 
+    game.Loaded:Wait()
+end
+
+-- Initialize No Jump Cooldown variables
+local IsA = game.IsA
+local newindex = nil
+
+-- Add No Jump Cooldown Toggle to Features section
+FeaturesSection:Toggle({
+    Name = "No JC",
+    Default = false,
+    Flag = "NoJumpCooldownEnabled",
+    Callback = function(value)
+        if value then
+            -- Setup the hook when enabled
+            if not newindex then
+                newindex = hookmetamethod(game, "__newindex", function(self, Index, Value)
+                    if not checkcaller() and IsA(self, "Humanoid") and Index == "JumpPower" then 
+                        return
+                    end
+                    return newindex(self, Index, Value)
+                end)
+            end
+            Library:Notification("No Jump Cooldown Enabled", 1)
+        else
+            Library:Notification("No Jump Cooldown Disabled", 1)
+        end
+    end
+})
