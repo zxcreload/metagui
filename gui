@@ -517,6 +517,87 @@ local PlayerFeaturesSection = MiscPage:Section({
     Side = "left"
 })
 
+-- Create Movement Features section
+local MovementFeaturesSection = MiscPage:Section({
+    Name = "Movement Features",
+    Side = "right"
+})
+
+-- Initialize Noclip
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local NoclipEnabled = false
+local originalCollisionStates = {}
+
+-- Function to store original collision states
+local function SaveOriginalStates(character)
+    originalCollisionStates = {}
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            originalCollisionStates[part] = part.CanCollide
+        end
+    end
+end
+
+-- Function to restore original collision states
+local function RestoreOriginalStates(character)
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and originalCollisionStates[part] ~= nil then
+            part.CanCollide = originalCollisionStates[part]
+        end
+    end
+end
+
+local function UpdateNoclip()
+    if not LocalPlayer.Character then return end
+    
+    if NoclipEnabled then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    else
+        RestoreOriginalStates(LocalPlayer.Character)
+    end
+end
+
+-- Handle character respawning
+LocalPlayer.CharacterAdded:Connect(function(char)
+    wait(0.5) -- Wait for character to fully load
+    SaveOriginalStates(char)
+end)
+
+-- Save states for initial character
+if LocalPlayer.Character then
+    SaveOriginalStates(LocalPlayer.Character)
+end
+
+-- Create Noclip toggle
+MovementFeaturesSection:Toggle({
+    Name = "Noclip",
+    Default = false,
+    Flag = "NoclipEnabled",
+    Callback = function(Value)
+        NoclipEnabled = Value
+        if Value then
+            if LocalPlayer.Character then
+                SaveOriginalStates(LocalPlayer.Character)
+            end
+            Library:Notification("Noclip Enabled", 1)
+        else
+            if LocalPlayer.Character then
+                RestoreOriginalStates(LocalPlayer.Character)
+            end
+            Library:Notification("Noclip Disabled", 1)
+        end
+    end
+})
+
+-- Connect Noclip update to RenderStepped
+RunService.RenderStepped:Connect(UpdateNoclip)
+
 -- Initialize Desync variables and functions
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
