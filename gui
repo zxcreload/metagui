@@ -1166,3 +1166,33 @@ MovementFeaturesSection:Toggle({
         end
     end
 })
+
+-- Initialize shadows variables
+local Lighting = game:GetService("Lighting")
+local isShadowsEnabled = true
+local originalShadowSettings = {
+    GlobalShadows = Lighting.GlobalShadows,
+    ShadowSoftness = Lighting.ShadowSoftness
+}
+
+-- Create DisableShadows toggle
+FeaturesSection:Toggle({
+    Name = "Disable Shadows",
+    Default = false,
+    Flag = "DisableShadowsEnabled",
+    Callback = function(value)
+        if value then
+            -- Disable shadows
+            Lighting.GlobalShadows = false
+            Lighting.ShadowSoftness = 0
+            isShadowsEnabled = false
+            Library:Notification("Shadows Disabled", 1)
+        else
+            -- Restore original shadow settings
+            Lighting.GlobalShadows = originalShadowSettings.GlobalShadows
+            Lighting.ShadowSoftness = originalShadowSettings.ShadowSoftness
+            isShadowsEnabled = true
+            Library:Notification("Shadows Restored", 1)
+        end
+    end
+})
