@@ -1,1443 +1,791 @@
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/i77lhm/vaderpaste/refs/heads/main/library.lua"))()
-local flags = library.flags
+-- Load the MetaGUI library
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/zxcreload/metagui/refs/heads/main/library"))()
 
-local window = library:window({
-    name = "metabreaker.lua",
-    size = UDim2.fromOffset(500, 650),
-    center = true,
-    auto_show = true,
-    accent = Color3.fromRGB(255, 0, 0, 1)
+-- Create a window
+local Window = Library:Window({
+    Name = "FULL.SKID"
 })
 
--- Create tabs
-local Combat = window:tab({name = "Combat"})
-local Movement = window:tab({name = "Move"})
-local Visuals = window:tab({name = "Visuals"})
-local Misc = window:tab({name = "Misc"})
-local Config = window:tab({name = "Config"})
-
--- Visuals tab - Backtrack section
-do
-    local backtrack_section = Visuals:section({name = "Backtrack", side = "left"})
-    
-    -- Основной тогл для активации/деактивации backtrack
-    local backtrack_toggle = backtrack_section:toggle({
-        name = "Enable",
-        flag = "backtrack_enabled",
-        default = false,
-        tooltip = "Enable backtrack clone",
-        callback = function(bool)
-            if bool then
-                -- Инициализируем переменные из библиотеки flags
-                local positionDelay = flags["backtrack_position_delay"] or 1
-                local movementDelay = flags["backtrack_movement_delay"] or 0.5
-                local jumpDelay = flags["backtrack_jump_delay"] or 0.75
-                local chamType = flags["backtrack_cham_type"] or "Normal"
-                local updateRate = flags["backtrack_update_rate"] or 30 -- FPS для обновления
-                
-                -- Загружаем скрипт backtrack
-                local Players = game:GetService("Players")
-                local RunService = game:GetService("RunService")
-                local Stats = game:GetService("Stats")
-
-                local player = Players.LocalPlayer
-                local character = player.Character or player.CharacterAdded:Wait()
-
-                local cloneModel = Instance.new("Model")
-                cloneModel.Name = "0x78"
-
-                local originalHRP = character:WaitForChild("HumanoidRootPart")
-                local cloneHRP = nil
-                local accessoriesCount = 0
-                local partMap = {}
-                local cloneHumanoid = nil
-
-                -- Буферы для хранения позиций, движений и прыжков с временными метками
-                local positionBuffer = {} -- Для горизонтальной позиции (X, Z)
-                local movementBuffer = {} -- Для движений (CFrame для ориентации и частей)
-                local jumpBuffer = {} -- Для вертикальной позиции (Y, прыжки)
-                
-                -- Максимальный размер буферов (для оптимизации памяти)
-                local maxBufferSize = 60 -- Ограничиваем размер буфера
-                
-                -- Переменные для контроля частоты обновления
-                local lastUpdateTime = 0
-                local updateInterval = 1 / updateRate
-
-                local function disableCollision(part)
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                        part.Anchored = true
-                    end
-                end
-
-                local function disableCollisionRecursive(object)
-                    for _, child in pairs(object:GetDescendants()) do
-                        disableCollision(child)
-                    end
-                end
-                
-                -- Оптимизированное клонирование - создаем только необходимые части
-                local function optimizedClone()
-                    -- Список важных частей для клонирования
-                    local essentialParts = {
-                        "Head", "Torso", "HumanoidRootPart", 
-                        "Left Arm", "Right Arm", "Left Leg", "Right Leg",
-                        "UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm",
-                        "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
-                        "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg",
-                        "LeftFoot", "RightFoot"
-                    }
-                    
-                    -- Создаем словарь для быстрого поиска
-                    local essentialPartsDict = {}
-                    for _, name in ipairs(essentialParts) do
-                        essentialPartsDict[name] = true
-                    end
-                    
-                    -- Клонирование модели игрока, только важные части
-                    for _, child in pairs(character:GetDescendants()) do
-                        if child:IsA("BasePart") and not child.Parent:IsA("Accessory") and 
-                           (essentialPartsDict[child.Name] or flags["backtrack_quality"] == "High") then
-                            local clonePart = child:Clone()
-                            
-                            -- Удаляем лишние компоненты
-                            for _, descendant in pairs(clonePart:GetDescendants()) do
-                                if descendant:IsA("Motor6D") or descendant:IsA("Weld") then
-                                    descendant:Destroy()
-                                end
-                            end
-                            
-                            -- Упрощаем голову для оптимизации
-                            if clonePart.Name == "Head" and clonePart:IsA("MeshPart") then
-                                clonePart.TextureID = ""
-                            end
-                            
-                            disableCollision(clonePart)
-                            clonePart.Parent = cloneModel
-                            
-                            if clonePart.Name == "HumanoidRootPart" then
-                                cloneHRP = clonePart
-                                cloneHRP.Transparency = 1 -- Делаем HRP полностью прозрачным
-                            end
-                            
-                            partMap[clonePart] = child
-                        elseif child:IsA("Accessory") and flags["backtrack_quality"] == "High" then
-                            -- Клонируем аксессуары только в высоком качестве
-                            accessoriesCount = accessoriesCount + 1
-                            local cloneAccessory = child:Clone()
-                            
-                            for _, accessoryPart in pairs(cloneAccessory:GetDescendants()) do
-                                if accessoryPart:IsA("Motor6D") or accessoryPart:IsA("Weld") or accessoryPart:IsA("Attachment") then
-                                    accessoryPart:Destroy()
-                                end
-                                
-                                if accessoryPart:IsA("MeshPart") and accessoryPart.Name == "Handle" then
-                                    accessoryPart.Name = "Handle_" .. child.Name .. "_" .. accessoriesCount
-                                    disableCollision(accessoryPart)
-                                    local originalHandle = child:FindFirstChild("Handle")
-                                    if originalHandle then
-                                        partMap[accessoryPart] = originalHandle
-                                    end
-                                end
-                            end
-                            
-                            disableCollisionRecursive(cloneAccessory)
-                            cloneAccessory.Parent = cloneModel
-                        elseif (child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic")) and 
-                               flags["backtrack_quality"] ~= "Low" then
-                            local cloned = child:Clone()
-                            disableCollisionRecursive(cloned)
-                            cloned.Parent = cloneModel
-                        elseif child:IsA("Humanoid") then
-                            cloneHumanoid = child:Clone()
-                            cloneHumanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
-                            cloneHumanoid.NameDisplayDistance = 9999999
-                            cloneHumanoid.Parent = cloneModel
-                        end
-                    end
-                end
-                
-                -- Вызываем оптимизированное клонирование
-                optimizedClone()
-                
-                disableCollisionRecursive(cloneModel)
-                
-                cloneModel.PrimaryPart = cloneHRP
-                cloneModel.Parent = workspace
-
-                -- Применяем выбранный тип chams
-                local function applyChamType()
-                    local selectedChamType = flags["backtrack_cham_type"]
-                    -- Исправляем получение цвета - colorpicker возвращает таблицу с полями Color и Transparency
-                    local chamColor = Color3.fromRGB(255, 0, 0) -- Значение по умолчанию
-                    if flags["backtrack_cham_color"] then
-                        if type(flags["backtrack_cham_color"]) == "table" and flags["backtrack_cham_color"].Color then
-                            chamColor = flags["backtrack_cham_color"].Color
-                        end
-                    end
-                    
-                    -- Удаляем все существующие highlight
-                    for _, part in pairs(cloneModel:GetDescendants()) do
-                        if part:IsA("Highlight") then
-                            part:Destroy()
-                        end
-                    end
-                    
-                    -- Применяем соответствующий материал и цвет
-                    for part, _ in pairs(partMap) do
-                        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                            if selectedChamType == "Normal" then
-                                part.Material = Enum.Material.SmoothPlastic
-                                part.Color = chamColor
-                                part.Transparency = flags["backtrack_transparency"] or 0.5
-                            elseif selectedChamType == "Forcefield" then
-                                part.Material = Enum.Material.ForceField
-                                part.Color = chamColor
-                                part.Transparency = 0.2
-                            elseif selectedChamType == "Highlight" then
-                                part.Material = Enum.Material.SmoothPlastic
-                                part.Transparency = 0.8
-                                
-                                -- Создаем highlight для части
-                                local highlight = Instance.new("Highlight")
-                                highlight.FillColor = chamColor
-                                highlight.OutlineColor = chamColor
-                                highlight.FillTransparency = 0.3
-                                highlight.OutlineTransparency = 0.5
-                                highlight.Parent = part
-                            end
-                        end
-                    end
-                end
-                
-                -- Применяем текущие настройки chams
-                applyChamType()
-
-                -- Функция для получения отложенной горизонтальной позиции (X, Z)
-                local function getDelayedPosition(currentTime)
-                    while #positionBuffer > 0 and (currentTime - positionBuffer[1].time) > positionDelay do
-                        table.remove(positionBuffer, 1)
-                    end
-                    if #positionBuffer > 0 then
-                        return positionBuffer[1].position
-                    end
-                    return Vector2.new(originalHRP.Position.X, originalHRP.Position.Z)
-                end
-
-                -- Функция для получения отложенного CFrame (для ориентации и движений)
-                local function getDelayedMovement(currentTime)
-                    while #movementBuffer > 0 and (currentTime - movementBuffer[1].time) > movementDelay do
-                        table.remove(movementBuffer, 1)
-                    end
-                    if #movementBuffer > 0 then
-                        return movementBuffer[1].cframe
-                    end
-                    return originalHRP.CFrame
-                end
-
-                -- Функция для получения отложенной вертикальной позиции (Y, прыжки)
-                local function getDelayedJump(currentTime)
-                    while #jumpBuffer > 0 and (currentTime - jumpBuffer[1].time) > jumpDelay do
-                        table.remove(jumpBuffer, 1)
-                    end
-                    if #jumpBuffer > 0 then
-                        return jumpBuffer[1].y
-                    end
-                    return originalHRP.Position.Y
-                end
-
-                local performanceStats = Stats:FindFirstChild("PerformanceStats")
-                if performanceStats then
-                    local pingStat = performanceStats.Ping
-                    local lastPingText = nil
-
-                    -- Сохраняем heartbeat connection чтобы можно было его отключить при выключении backtrack
-                    _G.backtrackHeartbeatConnection = RunService.Heartbeat:Connect(function()
-                        local currentTime = tick()
-                        
-                        -- Оптимизация: обновляем только на заданной частоте кадров
-                        if (currentTime - lastUpdateTime) < updateInterval then
-                            return
-                        end
-                        lastUpdateTime = currentTime
-                        
-                        -- Получаем обновленный показатель FPS из настроек
-                        updateRate = flags["backtrack_update_rate"] or 30
-                        updateInterval = 1 / updateRate
-                        
-                        if originalHRP and cloneHRP then
-                            -- Добавляем текущую горизонтальную позицию (X, Z) в буфер позиций
-                            table.insert(positionBuffer, {
-                                time = currentTime,
-                                position = Vector2.new(originalHRP.Position.X, originalHRP.Position.Z)
-                            })
-                            
-                            -- Ограничиваем размер буфера для экономии памяти
-                            if #positionBuffer > maxBufferSize then
-                                table.remove(positionBuffer, 1)
-                            end
-
-                            -- Добавляем текущий CFrame в буфер движений
-                            table.insert(movementBuffer, {
-                                time = currentTime,
-                                cframe = originalHRP.CFrame
-                            })
-                            
-                            -- Ограничиваем размер буфера для экономии памяти
-                            if #movementBuffer > maxBufferSize then
-                                table.remove(movementBuffer, 1)
-                            end
-
-                            -- Добавляем текущую Y-координату в буфер прыжков
-                            table.insert(jumpBuffer, {
-                                time = currentTime,
-                                y = originalHRP.Position.Y
-                            })
-                            
-                            -- Ограничиваем размер буфера для экономии памяти
-                            if #jumpBuffer > maxBufferSize then
-                                table.remove(jumpBuffer, 1)
-                            end
-
-                            -- Получаем отложенные значения с обновлёнными значениями из интерфейса
-                            positionDelay = flags["backtrack_position_delay"] or 1
-                            movementDelay = flags["backtrack_movement_delay"] or 0.5
-                            jumpDelay = flags["backtrack_jump_delay"] or 0.75
-                            
-                            local delayedXZ = getDelayedPosition(currentTime)
-                            local delayedY = getDelayedJump(currentTime)
-                            local delayedMovement = getDelayedMovement(currentTime)
-
-                            -- Устанавливаем позицию клона с отложенными X, Z и Y, с отложенной ориентацией
-                            cloneHRP.CFrame = CFrame.new(Vector3.new(delayedXZ.X, delayedY, delayedXZ.Y)) * CFrame.Angles(delayedMovement:ToEulerAnglesXYZ())
-
-                            -- Обновляем позиции всех частей клона на основе отложенного CFrame
-                            -- Оптимизация: не обновляем слишком часто при низком качестве
-                            local quality = flags["backtrack_quality"] or "Medium"
-                            
-                            for clonedPart, originalPart in pairs(partMap) do
-                                if originalPart and clonedPart then
-                                    local relativeCF = originalHRP.CFrame:ToObjectSpace(originalPart.CFrame)
-                                    clonedPart.CFrame = cloneHRP.CFrame * relativeCF
-                                    disableCollision(clonedPart)
-                                end
-                            end
-
-                            -- Обновляем пинг, если включено
-                            if cloneHumanoid and flags["backtrack_show_ping"] then
-                                local pingText = math.floor(tonumber(pingStat:GetValue())) .. " ms"
-                                if pingText ~= lastPingText then
-                                    cloneHumanoid.DisplayName = pingText
-                                    lastPingText = pingText
-                                end
-                            else
-                                cloneHumanoid.DisplayName = ""
-                            end
-                            
-                            -- Обновляем тип chams, если изменен
-                            if chamType ~= flags["backtrack_cham_type"] then
-                                chamType = flags["backtrack_cham_type"]
-                                applyChamType()
-                            end
-                            
-                            -- Обновляем прозрачность модели, если изменена
-                            local currentTransparency = flags["backtrack_transparency"] or 0.5
-                            for part, _ in pairs(partMap) do
-                                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and chamType == "Normal" then
-                                    part.Transparency = currentTransparency
-                                end
-                            end
-                        end
-                    end)
-                end
-            else
-                -- Удаляем backtrack модель при отключении
-                local cloneModel = workspace:FindFirstChild("0x78")
-                if cloneModel then
-                    cloneModel:Destroy()
-                end
-                
-                -- Отключаем Heartbeat соединение
-                if _G.backtrackHeartbeatConnection then
-                    _G.backtrackHeartbeatConnection:Disconnect()
-                    _G.backtrackHeartbeatConnection = nil
-                end
-            end
-        end
-    })
-    
-    -- Настройка качества и производительности
-    backtrack_section:dropdown({
-        name = "Quality",
-        flag = "backtrack_quality",
-        items = {"Low", "Medium", "High"},
-        default = "Medium",
-        tooltip = "Backtrack quality",
-        callback = function(option)
-            -- Если backtrack активен, перезапускаем его для применения нового качества
-            if flags["backtrack_enabled"] then
-                local cloneModel = workspace:FindFirstChild("0x78")
-                if cloneModel then
-                    cloneModel:Destroy()
-                end
-                
-                if _G.backtrackHeartbeatConnection then
-                    _G.backtrackHeartbeatConnection:Disconnect()
-                    _G.backtrackHeartbeatConnection = nil
-                end
-                
-                -- Немного ждем перед повторным включением
-                task.delay(0.1, function()
-                    flags["backtrack_enabled"] = true
-                    backtrack_toggle:set(true)
-                end)
-            end
-        end
-    })
-    
-    -- Слайдер для настройки частоты обновления (FPS)
-    backtrack_section:slider({
-        name = "Rate",
-        suffix = "fps",
-        flag = "backtrack_update_rate",
-        default = 30,
-        min = 5,
-        max = 60,
-        interval = 5,
-        tooltip = "Update rate"
-    })
-    
-    -- Sliders для настройки задержек
-    backtrack_section:slider({
-        name = "Pos Delay",
-        suffix = "sec",
-        flag = "backtrack_position_delay",
-        default = 1,
-        min = 0,
-        max = 3,
-        interval = 0.05,
-        tooltip = "Horizontal delay"
-    })
-    
-    backtrack_section:slider({
-        name = "Yaw Delay",
-        suffix = "sec",
-        flag = "backtrack_movement_delay",
-        default = 0.5,
-        min = 0,
-        max = 3,
-        interval = 0.05,
-        tooltip = "Yaw delay"
-    })
-    
-    backtrack_section:slider({
-        name = "Jump Delay",
-        suffix = "sec",
-        flag = "backtrack_jump_delay",
-        default = 0.75,
-        min = 0,
-        max = 3,
-        interval = 0.05,
-        tooltip = "Jump delay"
-    })
-    
-    -- Slider для прозрачности
-    backtrack_section:slider({
-        name = "Alpha",
-        suffix = "%",
-        flag = "backtrack_transparency",
-        default = 50,
-        min = 0,
-        max = 100,
-        interval = 1,
-        tooltip = "Transparency",
-        callback = function(value)
-            flags["backtrack_transparency"] = value / 100
-        end
-    })
-    
-    -- Dropdown для выбора типа chams
-    backtrack_section:dropdown({
-        name = "Chams",
-        flag = "backtrack_cham_type",
-        items = {"Normal", "Forcefield", "Highlight"},
-        default = "Normal",
-        tooltip = "Chams type",
-        callback = function(option)
-            -- Применяем новый тип чамсов если backtrack активен
-            if flags["backtrack_enabled"] and workspace:FindFirstChild("0x78") then
-                local cloneModel = workspace:FindFirstChild("0x78")
-                local chamColor = Color3.fromRGB(255, 0, 0)
-                
-                -- Получаем актуальный цвет
-                if flags["backtrack_cham_color"] and type(flags["backtrack_cham_color"]) == "table" and flags["backtrack_cham_color"].Color then
-                    chamColor = flags["backtrack_cham_color"].Color
-                end
-                
-                -- Удаляем существующие highlight
-                for _, part in pairs(cloneModel:GetDescendants()) do
-                    if part:IsA("Highlight") then
-                        part:Destroy()
-                    end
-                end
-                
-                -- Применяем новый тип чамсов ко всем частям
-                for _, part in pairs(cloneModel:GetDescendants()) do
-                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                        if option == "Normal" then
-                            part.Material = Enum.Material.SmoothPlastic
-                            part.Color = chamColor
-                            part.Transparency = flags["backtrack_transparency"] or 0.5
-                        elseif option == "Forcefield" then
-                            part.Material = Enum.Material.ForceField
-                            part.Color = chamColor
-                            part.Transparency = 0.2
-                        elseif option == "Highlight" then
-                            part.Material = Enum.Material.SmoothPlastic
-                            part.Transparency = 0.8
-                            
-                            -- Создаем highlight для части
-                            local highlight = Instance.new("Highlight")
-                            highlight.FillColor = chamColor
-                            highlight.OutlineColor = chamColor
-                            highlight.FillTransparency = 0.3
-                            highlight.OutlineTransparency = 0.5
-                            highlight.Parent = part
-                        end
-                    end
-                end
-            end
-        end
-    })
-    
-    -- Colorpicker для настройки цвета
-    backtrack_section:colorpicker({
-        name = "Color",
-        flag = "backtrack_cham_color",
-        default = Color3.fromRGB(255, 0, 0),
-        callback = function(color, alpha)
-            -- Проверяем текущий режим и применяем цвет
-            if flags["backtrack_enabled"] and workspace:FindFirstChild("0x78") then
-                local selectedChamType = flags["backtrack_cham_type"]
-                local cloneModel = workspace:FindFirstChild("0x78")
-                
-                -- Обновляем цвета на частях модели
-                for _, part in pairs(cloneModel:GetDescendants()) do
-                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                        part.Color = color
-                    end
-                    
-                    -- Обновляем цвет в подсветке, если используется режим Highlight
-                    if part:IsA("Highlight") then
-                        part.FillColor = color
-                        part.OutlineColor = color
-                    end
-                end
-            end
-        end
-    })
-    
-    -- Toggle для отображения пинга
-    backtrack_section:toggle({
-        name = "Ping",
-        flag = "backtrack_show_ping",
-        default = true,
-        tooltip = "Show ping"
-    })
-end
-
--- Config tab sections
-do
-    -- Configuration System (left side)
-    local config_section = Config:section({name = "Configs", side = "left"})
-    library.config_holder = config_section:dropdown({name = "List", items = {}, flag = "config_name_list"})
-    config_section:textbox({flag = "config_name_text_box"})
-    config_section:button({name = "Create", callback = function()
-        writefile(library.directory .. "/configs/" .. flags["config_name_text_box"] .. ".cfg", library:get_config())
-        library:config_list_update()
-    end})
-    config_section:button({name = "Delete", callback = function()
-        library:panel({
-            name = "Are you sure you want to delete " .. flags["config_name_list"] .. " ?",
-            options = {"Yes", "No"},
-            callback = function(option)
-                if option == "Yes" then
-                    delfile(library.directory .. "/configs/" .. flags["config_name_list"] .. ".cfg")
-                    library:config_list_update()
-                end
-            end
-        })
-    end})
-    config_section:button({name = "Load", callback = function()
-        library:load_config(readfile(library.directory .. "/configs/" .. flags["config_name_list"] .. ".cfg"))
-    end})
-    config_section:button({name = "Save", callback = function()
-        writefile(library.directory .. "/configs/" .. flags["config_name_text_box"] .. ".cfg", library:get_config())
-        library:config_list_update()
-    end})
-    config_section:button({name = "Unload", callback = function()
-        library:load_config(old_config)
-    end})
-    config_section:button({name = "Close", callback = function()
-        library:unload()
-    end})
-    config_section:keybind({
-        name = "Menu Key",
-        flag = "menu_keybind",
-        default = Enum.KeyCode.Insert,
-        keybind_name = "Menu",
-        callback = function(bool)
-            window.set_menu_visibility(bool)
-        end
-    })
-
-    -- Theming System (right side)
-    local theming_section = Config:section({name = "HUD", side = "right"})
-    theming_section:toggle({
-        name = "Keybinds",
-        flag = "keybind_list",
-        default = false,
-        callback = function(bool)
-            window.toggle_list(bool)
-        end
-    })
-    theming_section:toggle({
-        name = "Players",
-        flag = "player_list",
-        default = false,
-        callback = function(bool)
-            window.toggle_playerlist(bool)
-        end
-    })
-    theming_section:toggle({
-        name = "Watermark",
-        flag = "watermark",
-        default = false,
-        callback = function(bool)
-            window.toggle_watermark(bool)
-        end
-    })
-    theming_section:colorpicker({
-        name = "Accent",
-        flag = "accent_color",
-        default = Color3.fromRGB(214, 52, 52, 0),
-        callback = function(color, alpha)
-            library:update_theme("accent", color)
-        end
-    })
-
-    -- Добавляем слайдер для скорости анимации colorpicker
-    config_section:slider({
-        name = "Rainbow Speed",
-        flag = "color_picker_anim_speed",
-        default = 2,
-        min = 0.5,
-        max = 10,
-        interval = 0.5
-    })
-    
-    config_section:keybind({
-        name = "Menu Keybind",
-        flag = "menu_keybind",
-        default = Enum.KeyCode.Insert,
-        keybind_name = "Открыть/закрыть меню",
-        callback = function(bool)
-            window.set_menu_visibility(bool)
-        end
-    })
-end
-
--- Initialize config list
-library:config_list_update()
-
--- Visuals tab - ESP section
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-
-local localPlayer = Players.LocalPlayer
-local espCache = {}
-
--- Вспомогательная функция для получения Color3 из flags (colorpicker может возвращать таблицу)
-local function getColor3FromFlag(flag, default)
-    local v = flags[flag]
-    if typeof(v) == "Color3" then return v end
-    if type(v) == "table" and v.Color and typeof(v.Color) == "Color3" then return v.Color end
-    return default
-end
-
--- Универсальная функция для получения значения из flags с дефолтом
-local function getFlag(flag, default)
-    if flags[flag] ~= nil then return flags[flag] end
-    return default
-end
-
--- Функция создания ESP
-local function createESP(player)
-    if player == localPlayer then return end
-    if espCache[player] then
-        if espCache[player].Billboard then
-            espCache[player].Billboard:Destroy()
-        end
-        espCache[player] = nil
-    end
-    local character = player.Character
-    if not character then return end
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    local torso = character:FindFirstChild("Torso")
-    local anchorPart = humanoidRootPart or torso
-    if not anchorPart then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    end
-    -- Расчет размеров и позиций
-    local nickHeight = getFlag("esp_nick", true) and 0.5 or 0
-    local infoHeight = getFlag("esp_distance", true) and 0.5 or 0
-    local hpTextHeight = getFlag("esp_hptext", true) and 0.5 or 0
-    local totalWidth = 4 + 2
-    local totalHeight = 6 + nickHeight + infoHeight + hpTextHeight
-    -- Создание BillboardGui
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP_" .. player.Name
-    billboard.Adornee = anchorPart
-    billboard.Size = UDim2.new(totalWidth, 0, totalHeight, 0)
-    billboard.StudsOffset = Vector3.new(0, -0.3, 0)
-    billboard.AlwaysOnTop = true
-    billboard.LightInfluence = 0
-    billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    billboard.MaxDistance = getFlag("esp_maxdistance", 500)
-    billboard.Parent = character
-    local boxFrameY = getFlag("esp_nick", true) and getFlag("esp_nickside", "Above") == "Above" and nickHeight / totalHeight or 0
-    -- 2D Box
-    local boxFrame
-    local boxLeftEdge = (totalWidth - 4) / (2 * totalWidth)
-    local boxRightEdge = boxLeftEdge + (4 / totalWidth)
-    if getFlag("esp_box", true) then
-        boxFrame = Instance.new("Frame")
-        boxFrame.Name = "BoxFrame"
-        boxFrame.Size = UDim2.new(4 / totalWidth, 0, 6 / totalHeight, 0)
-        boxFrame.Position = UDim2.new(boxLeftEdge, 0, boxFrameY, 0)
-        boxFrame.BackgroundTransparency = 1
-        boxFrame.Parent = billboard
-
-        local outline = Instance.new("UIStroke")
-        outline.Name = "Outline"
-        outline.Thickness = 3
-        outline.Transparency = 0.3
-        outline.Color = Color3.fromRGB(255,255,255) -- всегда белый
-        outline.Parent = boxFrame
-
-        -- Градиент для outline (UIStroke)
-        local gradient = Instance.new("UIGradient")
-        gradient.Name = "Gradient"
-        gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, getColor3FromFlag("esp_box_color1", Color3.fromRGB(255,255,255))),
-            ColorSequenceKeypoint.new(1, getColor3FromFlag("esp_box_color2", Color3.fromRGB(255,255,255)))
-        })
-        gradient.Rotation = 90
-        gradient.Parent = outline
-    end
-    -- HP Bar (Right)
-    local healthBarFrame, healthBarFill, healthGradient
-    if getFlag("esp_hpbar", true) then
-        healthBarFrame = Instance.new("Frame")
-        healthBarFrame.Name = "HealthBarFrame"
-        healthBarFrame.Size = UDim2.new(0.08 / totalWidth, 0, 6 / totalHeight, 0)
-        healthBarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        healthBarFrame.BackgroundTransparency = 0.5
-        -- HP Bar справа от box
-        healthBarFrame.Position = UDim2.new(boxRightEdge + (0.4 / totalWidth), 0, boxFrameY, 0)
-        healthBarFrame.ZIndex = 1
-        healthBarFrame.Parent = billboard
-        healthBarFill = Instance.new("Frame")
-        healthBarFill.Name = "HealthBarFill"
-        healthBarFill.Size = UDim2.new(1, 0, 1, 0)
-        healthBarFill.Position = UDim2.new(0, 0, 0, 0)
-        healthBarFill.BackgroundTransparency = 0
-        healthBarFill.ZIndex = 2
-        healthBarFill.Parent = healthBarFrame
-        healthGradient = Instance.new("UIGradient")
-        healthGradient.Name = "HealthGradient"
-        healthGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, getColor3FromFlag("esp_hpbar_color1", Color3.fromRGB(0,255,0))),
-            ColorSequenceKeypoint.new(1, getColor3FromFlag("esp_hpbar_color2", Color3.fromRGB(255,0,0)))
-        })
-        healthGradient.Rotation = 90
-        healthGradient.Parent = healthBarFill
-        local healthCorner = Instance.new("UICorner")
-        healthCorner.Name = "HealthCorner"
-        healthCorner.CornerRadius = UDim.new(0.2, 0)
-        healthCorner.Parent = healthBarFrame
-        local healthOutline = Instance.new("UIStroke")
-        healthOutline.Name = "HealthOutline"
-        healthOutline.Thickness = 1
-        healthOutline.Color = Color3.fromRGB(255, 255, 255)
-        healthOutline.Transparency = 0.5
-        healthOutline.Parent = healthBarFrame
-    end
-    -- Armor Bar (Left)
-    local armorBarFrame, armorBarFill, armorGradient
-    if getFlag("esp_armorbar", true) then
-        armorBarFrame = Instance.new("Frame")
-        armorBarFrame.Name = "ArmorBarFrame"
-        armorBarFrame.Size = UDim2.new(0.08 / totalWidth, 0, 6 / totalHeight, 0)
-        armorBarFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        armorBarFrame.BackgroundTransparency = 0.5
-        -- Armor Bar слева от box
-        armorBarFrame.Position = UDim2.new(boxLeftEdge - (0.4 + 0.08) / totalWidth, 0, boxFrameY, 0)
-        armorBarFrame.ZIndex = 1
-        armorBarFrame.Parent = billboard
-        armorBarFill = Instance.new("Frame")
-        armorBarFill.Name = "ArmorBarFill"
-        armorBarFill.Size = UDim2.new(1, 0, 1, 0)
-        armorBarFill.Position = UDim2.new(0, 0, 0, 0)
-        armorBarFill.BackgroundTransparency = 0
-        armorBarFill.ZIndex = 2
-        armorBarFill.Parent = armorBarFrame
-        armorGradient = Instance.new("UIGradient")
-        armorGradient.Name = "ArmorGradient"
-        armorGradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, getColor3FromFlag("esp_armorbar_color1", Color3.fromRGB(0,0,255))),
-            ColorSequenceKeypoint.new(1, getColor3FromFlag("esp_armorbar_color2", Color3.fromRGB(100,100,255)))
-        })
-        armorGradient.Rotation = 90
-        armorGradient.Parent = armorBarFill
-        local armorCorner = Instance.new("UICorner")
-        armorCorner.Name = "ArmorCorner"
-        armorCorner.CornerRadius = UDim.new(0.2, 0)
-        armorCorner.Parent = armorBarFrame
-        local armorOutline = Instance.new("UIStroke")
-        armorOutline.Name = "ArmorOutline"
-        armorOutline.Thickness = 1
-        armorOutline.Color = Color3.fromRGB(255, 255, 255)
-        armorOutline.Transparency = 0.5
-        armorOutline.Parent = armorBarFrame
-    end
-    -- Никнейм
-    local nickNameText
-    if getFlag("esp_nick", true) then
-        nickNameText = Instance.new("TextLabel")
-        nickNameText.Name = "NickNameText"
-        nickNameText.Size = UDim2.new(1, 0, 0.5 / totalHeight, 0)
-        nickNameText.BackgroundTransparency = 1
-        nickNameText.TextSize = 18 * 0.8
-        nickNameText.TextColor3 = Color3.fromRGB(255,255,255)
-        nickNameText.TextStrokeTransparency = 0
-        nickNameText.Font = Enum.Font.Ubuntu
-        nickNameText.TextScaled = false
-        nickNameText.Text = player.Name
-        nickNameText.ZIndex = 2
-        nickNameText.Position = UDim2.new(0, 0, boxFrameY - (0.5 / totalHeight), 0)
-        nickNameText.Parent = billboard
-    end
-    -- Distance Text
-    local distanceText
-    if getFlag("esp_distance", true) then
-        distanceText = Instance.new("TextLabel")
-        distanceText.Name = "DistanceText"
-        distanceText.Size = UDim2.new(1, 0, 0.5 / totalHeight, 0)
-        distanceText.Position = UDim2.new(0, 0, boxFrameY + (6 / totalHeight), 0)
-        distanceText.BackgroundTransparency = 1
-        distanceText.TextSize = 18
-        distanceText.TextColor3 = Color3.fromRGB(255,255,255)
-        distanceText.TextStrokeTransparency = 0
-        distanceText.Font = Enum.Font.Ubuntu
-        distanceText.TextScaled = false
-        distanceText.Text = ""
-        distanceText.ZIndex = 2
-        distanceText.Parent = billboard
-    end
-    espCache[player] = {
-        Billboard = billboard,
-        Box = boxFrame,
-        HealthBarFrame = healthBarFrame,
-        HealthBarFill = healthBarFill,
-        HealthGradient = healthGradient,
-        ArmorBarFrame = armorBarFrame,
-        ArmorBarFill = armorBarFill,
-        ArmorGradient = armorGradient,
-        NickNameText = nickNameText,
-        DistanceText = distanceText,
-        Character = character,
-        AnchorPart = anchorPart,
-        LastHealth = 0,
-        LastArmor = 0,
-        Player = player
-    }
-end
-
--- Функция обновления ESP
-local function updateESP()
-    -- Для расчёта дистанции используем только HRP или первую часть тела
-    local localCharacter = localPlayer.Character
-    local localAnchorPart = nil
-    if localCharacter then
-        localAnchorPart = localCharacter:FindFirstChild("HumanoidRootPart")
-        if not localAnchorPart then
-            for _, part in ipairs(localCharacter:GetChildren()) do
-                if part:IsA("BasePart") then
-                    localAnchorPart = part
-                    break
-                end
-            end
-        end
-    end
-    for player, data in pairs(espCache) do
-        if not player or not player.Parent or not data.Character or not data.Character.Parent then
-            if data.Billboard then
-                data.Billboard:Destroy()
-            end
-            espCache[player] = nil
-            continue
-        end
-        local character = data.Character
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        local torso = character:FindFirstChild("Torso")
-        local anchorPart = humanoidRootPart or torso
-        if not humanoid or not anchorPart then
-            data.Billboard.Enabled = false
-            continue
-        end
-        -- Проверка состояния Ragdoll и Grabbed
-        local bodyEffects = character:FindFirstChild("BodyEffects")
-        local isRagdolled = bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value
-        local isGrabbed = character:FindFirstChild("GRABBING_CONSTRAINT") ~= nil
-        if getFlag("esp_ignoreragdoll", true) and isRagdolled then
-            data.Billboard.Enabled = false
-            continue
-        end
-        if getFlag("esp_ignoregrabbed", true) and isGrabbed then
-            data.Billboard.Enabled = false
-            continue
-        end
-        -- Проверка дистанции
-        local distance = localAnchorPart and (anchorPart.Position - localAnchorPart.Position).Magnitude or math.huge
-        if distance > getFlag("esp_maxdistance", 500) then
-            data.Billboard.Enabled = false
-            continue
-        end
-        data.Billboard.Adornee = anchorPart
-        data.AnchorPart = anchorPart
-        data.Billboard.Enabled = getFlag("esp_enabled", false)
-        -- Обновление текста расстояния
-        if getFlag("esp_distance", true) and data.DistanceText and localAnchorPart then
-            local distance = (anchorPart.Position - localAnchorPart.Position).Magnitude
-            data.DistanceText.Text = ("%d studs"):format(math.floor(distance))
-        elseif data.DistanceText then
-            data.DistanceText.Text = ""
-        end
-        -- Обновление текста здоровья
-        if getFlag("esp_hptext", true) and humanoid and data.HPText then
-            local healthPercent = humanoid.Health / humanoid.MaxHealth
-            if healthPercent then
-                data.HPText.Text = ("%d%%"):format(math.floor(healthPercent * 100))
-            end
-        elseif data.HPText then
-            data.HPText.Text = ""
-        end
-        -- Обновление никнейма
-        if getFlag("esp_nick", true) and data.NickNameText then
-            data.NickNameText.Text = player.Name
-        end
-    end
-end
-
--- Функция обновления ESP для всех игроков
-local function refreshESP()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= localPlayer then
-            createESP(player)
-        end
-    end
-end
-
--- Очистка при выходе игрока
-Players.PlayerRemoving:Connect(function(player)
-    if espCache[player] then
-        if espCache[player].Billboard then
-            espCache[player].Billboard:Destroy()
-        end
-        espCache[player] = nil
-    end
-end)
-
--- Периодическое обновление ESP
-spawn(function()
-    while true do
-        if getFlag("esp_enabled", false) then
-            refreshESP()
-            updateESP()
-        else
-            for _, data in pairs(espCache) do
-                if data.Billboard then
-                    data.Billboard.Enabled = false
-                end
-            end
-        end
-        task.wait(1)
-    end
-end)
-
--- UI для ESP
-local esp_section = Visuals:section({name = "ESP", side = "right"})
-esp_section:toggle({name = "ESP", flag = "esp_enabled", default = false})
-esp_section:toggle({name = "Box", flag = "esp_box", default = true})
-esp_section:colorpicker({name = "Box 1", flag = "esp_box_color1", default = Color3.fromRGB(255,255,255)})
-esp_section:colorpicker({name = "Box 2", flag = "esp_box_color2", default = Color3.fromRGB(255,255,255)})
-esp_section:toggle({name = "HP", flag = "esp_hpbar", default = true})
-esp_section:colorpicker({name = "HP 1", flag = "esp_hpbar_color1", default = Color3.fromRGB(0,255,0)})
-esp_section:colorpicker({name = "HP 2", flag = "esp_hpbar_color2", default = Color3.fromRGB(255,0,0)})
-esp_section:toggle({name = "Armor", flag = "esp_armorbar", default = true})
-esp_section:colorpicker({name = "Armor 1", flag = "esp_armorbar_color1", default = Color3.fromRGB(0,0,255)})
-esp_section:colorpicker({name = "Armor 2", flag = "esp_armorbar_color2", default = Color3.fromRGB(100,100,255)})
-esp_section:toggle({name = "Name", flag = "esp_nick", default = true})
-esp_section:toggle({name = "Dist", flag = "esp_distance", default = true})
-esp_section:slider({name = "Max", flag = "esp_maxdistance", default = 500, min = 10, max = 100000, interval = 1})
-esp_section:toggle({name = "Ignore Grab", flag = "esp_ignoregrabbed", default = true})
-esp_section:toggle({name = "Ignore Ragdoll", flag = "esp_ignoreragdoll", default = true})
-esp_section:slider({name = "Grad Speed", flag = "esp_gradientspeed", default = 3, min = 0.1, max = 10, interval = 0.1})
-
--- Таблица текстур для трейсера
-local tracer_textures = {
-    ["Starhook"] = "rbxassetid://446111271",
-    ["Chain"] = "rbxassetid://3029306948",
-    ["Lightning"] = "rbxassetid://7216850022",
-    ["Beam"] = "rbxassetid://1263079249"
-}
-local tracer_texture_names = {}
-for name, _ in pairs(tracer_textures) do table.insert(tracer_texture_names, name) end
-
--- Таблица текстур для импакта (можно расширить)
-local impact_textures = {
-    ["Default"] = "rbxassetid://81478735887868",
-    ["Bullet"] = "rbxassetid://123965194525210"
-    
-}
-local impact_texture_names = {}
-for name, _ in pairs(impact_textures) do table.insert(impact_texture_names, name) end
-
--- UI for Bullet Tracers (ENGLISH)
-local tracers_section = Visuals:section({name = "Tracers", side = "left"})
-tracers_section:toggle({
-    name = "Tracers",
-    flag = "tracers_enabled",
-    default = false
+-- Create pages (tabs)
+local CombatPage = Window:Page({
+    Name = "Combat"
 })
-tracers_section:dropdown({
-    name = "Texture",
-    flag = "tracer_texture",
-    items = tracer_texture_names,
-    default = tracer_texture_names[1],
-    callback = function(option)
-        flags["tracer_texture"] = option
+
+local MovementPage = Window:Page({
+    Name = "Movement"
+})
+
+local VisualsPage = Window:Page({
+    Name = "Visuals"
+})
+
+local MiscPage = Window:Page({
+    Name = "Misc"
+})
+
+local ConfigPage = Window:Page({
+    Name = "Config"
+})
+
+-- Create Config sections
+local UISection = ConfigPage:Section({
+    Name = "Interface",
+    Side = "left"
+})
+
+-- GUI Toggle keybind
+UISection:Keybind({
+    Name = "Toggle GUI",
+    Default = Enum.KeyCode.Insert,
+    Flag = "ToggleGUI",
+    Mode = "Toggle",  -- Явно указываем режим Toggle
+    Callback = function(value)
+        -- Прямой вызов SetOpen
+        Library:SetOpen(value)
     end
 })
-tracers_section:colorpicker({
-    name = "Color 1",
-    flag = "tracer_color1",
-    default = Color3.fromRGB(255, 0, 0)
-})
-tracers_section:colorpicker({
-    name = "Color 2",
-    flag = "tracer_color2",
-    default = Color3.fromRGB(0, 0, 255)
-})
-tracers_section:slider({
-    name = "Time",
-    flag = "tracer_duration",
-    default = 2,
-    min = 0.1,
-    max = 5,
-    interval = 0.1
-})
-tracers_section:toggle({
-    name = "Fade",
-    flag = "tracer_fade_enabled",
-    default = true
-})
-tracers_section:slider({
-    name = "Fade Time",
-    flag = "tracer_fade_duration",
-    default = 0.5,
-    min = 0.05,
-    max = 1,
-    interval = 0.01
-})
-tracers_section:slider({
-    name = "Size",
-    flag = "tracer_size",
-    default = 1,
-    min = 0.1,
-    max = 10,
-    interval = 0.1
-})
 
--- UI for Bullet Impacts (ENGLISH)
-local impacts_section = Visuals:section({name = "Impacts", side = "right"})
-impacts_section:toggle({
-    name = "Impacts",
-    flag = "impacts_enabled",
-    default = false
-})
-impacts_section:dropdown({
-    name = "Texture",
-    flag = "impact_texture",
-    items = impact_texture_names,
-    default = impact_texture_names[1],
-    callback = function(option)
-        flags["impact_texture"] = option
+-- Accent color picker
+UISection:Colorpicker({
+    Name = "Accent Color",
+    Default = Color3.fromRGB(85, 170, 255),
+    Flag = "AccentColor",
+    Callback = function(Color)
+        Library:ChangeAccent(Color)
     end
 })
-impacts_section:colorpicker({
-    name = "Color",
-    flag = "impact_color",
-    default = Color3.fromRGB(255, 0, 0)
-})
-impacts_section:slider({
-    name = "Size",
-    flag = "impact_size",
-    default = 3,
-    min = 0.5,
-    max = 10,
-    interval = 0.1
-})
-impacts_section:slider({
-    name = "Time",
-    flag = "impact_duration",
-    default = 2,
-    min = 0.1,
-    max = 5,
-    interval = 0.1
-})
-impacts_section:slider({
-    name = "Spin",
-    flag = "impact_fade_speed",
-    default = 1,
-    min = 0.1,
-    max = 5,
-    interval = 0.1
+
+-- Setup Config Manager in the right section
+local PresetsSection = ConfigPage:Section({
+    Name = "Presets",
+    Side = "right"
 })
 
--- ===================== ЛОГИКА BULLET TRACERS & IMPACTS =====================
-local Workspace = game:GetService("Workspace")
+-- Initialize the built-in config manager
+Library:SetupConfigManager(ConfigPage)
 
--- Все поддерживаемые hood-игры с настройками
-local gameData = {
-    [2788229376] = {
-        Name = "Da Hood",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePosI",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") and Workspace.Ignored:FindFirstChild("Siren") and Workspace.Ignored.Siren:FindFirstChild("Radius") or nil end
-    },
-    [71189885129233] = {
-        Name = "Del hood",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") or nil end
-    },
-    [5602055394] = {
-        Name = "Hood Modded",
-        Remote = "MAINEVENT",
-        Argument = "MousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") or nil end
-    },
-    [17403265390] = {
-        Name = "Da Downhill",
-        Remote = "MAINEVENT",
-        Argument = "MOUSE",
-        BulletName = "Part",
-        BulletBeamName = "gb",
-        BulletPath = function() return Workspace end
-    },
-    [17403166075] = {
-        Name = "Da Bank",
-        Remote = "MAINEVENT",
-        Argument = "MOUSE",
-        BulletName = "Part",
-        BulletBeamName = "gb",
-        BulletPath = function() return Workspace end
-    },
-    [18111448661] = {
-        Name = "Da Uphill",
-        Remote = "MAINEVENT",
-        Argument = "MOUSE",
-        BulletName = "Part",
-        BulletBeamName = "gb",
-        BulletPath = function() return Workspace end
-    },
-    [15186202290] = {
-        Name = "Da Strike",
-        Remote = "MAINEVENT",
-        Argument = "MOUSE",
-        BulletName = "Part",
-        BulletBeamName = "gb",
-        BulletPath = function() return Workspace end
-    },
-    [11143225577] = {
-        Name = "1v1 Hood Aim Trainer",
-        Remote = "MAINEVENT",
-        Argument = "UpdateMousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace end
-    },
-    [15763494605] = {
-        Name = "Hood Aim",
-        Remote = "MAINEVENT",
-        Argument = "MOUSE",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace end
-    },
-    [15166543806] = {
-        Name = "Moon Hood",
-        Remote = "MAINEVENT",
-        Argument = "MoonUpdateMousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace end
-    },
-    [17897702920] = {
-        Name = "OG Da Hood",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace end
-    },
-    [16033173781] = {
-        Name = "Da Hood Macro",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePosI",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") and Workspace.Ignored:FindFirstChild("Siren") and Workspace.Ignored.Siren:FindFirstChild("Radius") or nil end
-    },
-    [7213786345] = {
-        Name = "Da Hood VC",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePosI",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") and Workspace.Ignored:FindFirstChild("Siren") and Workspace.Ignored.Siren:FindFirstChild("Radius") or nil end
-    },
-    [9825515356] = {
-        Name = "Hood Customs",
-        Remote = "MainEvent",
-        Argument = "MousePosUpdate",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") or nil end
-    },
-    [16859411452] = {
-        Name = "Hood Z",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePos",
-        BulletName = "bulletray",
-        BulletBeamName = "beam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") or nil end
-    },
-    [14277620939] = {
-        Name = "Custom FFA",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") or nil end
-    },
-    [0] = {
-        Name = "Неизвестная Hood игра",
-        Remote = "MainEvent",
-        Argument = "UpdateMousePos",
-        BulletName = "BULLET_RAYS",
-        BulletBeamName = "GunBeam",
-        BulletPath = function() return Workspace:FindFirstChild("Ignored") or Workspace end
-    }
+-- Load all available configurations
+Library:LoadAllConfigs()
+
+-- Создаем ватермарк
+local Watermark = Library:Watermark({
+    Name = "FULL.SKID"
+})
+
+-- Создаем секцию для индикатора в Config
+local InfoSection = ConfigPage:Section({
+    Name = "Display",
+    Side = "right"
+})
+
+-- Создаем секцию для StaffList в Config
+local StaffSection = ConfigPage:Section({
+    Name = "Staff",
+    Side = "left"
+})
+
+-- Создаем индикатор через библиотеку
+local Indicator = Library:Indicator({
+    Name = "FULL.SKID" -- Индикатор можно перемещать мышкой
+})
+
+-- Создаем StaffList
+local StaffList = Library:StaffList({
+    Name = "Staff List" -- Список персонала можно перемещать мышкой
+})
+
+-- Устанавливаем начальную позицию индикатора по центру экрана
+Indicator:SetPosition("top")
+
+-- Список вариантов информации для индикатора
+local IndicatorOptions = {
+    "coordinates",
+    "state",
+    "ping",
+    "speed"
 }
 
-local function detectGame()
-    local placeId = game.PlaceId
-    local data = gameData[placeId] or gameData[0]
-    local path = data.BulletPath and data.BulletPath() or nil
-    if not path then path = Workspace:FindFirstChild("Ignored") or Workspace end
-    data.BulletPath = path
-    return data
-end
-
-local function createBeam(from, to, color_1, color_2, duration, fade_enabled, fade_duration, beam_settings)
-    local main_part = Instance.new("Part")
-    main_part.Name = "BulletTracer"
-    main_part.Parent = Workspace
-    main_part.Size = Vector3.new(0, 0, 0)
-    main_part.Massless = true
-    main_part.Transparency = 1
-    main_part.CanCollide = false
-    main_part.Position = from
-    main_part.Anchored = true
-    local part0 = Instance.new("Part")
-    part0.Parent = main_part
-    part0.Size = Vector3.new(0, 0, 0)
-    part0.Massless = true
-    part0.Transparency = 1
-    part0.CanCollide = false
-    part0.Position = from
-    part0.Anchored = true
-    local part1 = Instance.new("Part")
-    part1.Parent = main_part
-    part1.Size = Vector3.new(0, 0, 0)
-    part1.Massless = true
-    part1.Transparency = 1
-    part1.CanCollide = false
-    part1.Position = to
-    part1.Anchored = true
-    local attachment0 = Instance.new("Attachment")
-    attachment0.Parent = part0
-    local attachment1 = Instance.new("Attachment")
-    attachment1.Parent = part1
-    local beam = Instance.new("Beam")
-    beam.Texture = beam_settings.texture
-    beam.TextureMode = Enum.TextureMode.Wrap
-    beam.TextureLength = beam_settings.texture_length
-    beam.LightEmission = beam_settings.light_emission
-    beam.LightInfluence = beam_settings.light_influence
-    beam.FaceCamera = true
-    beam.ZOffset = -1
-    beam.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 0),
-    })
-    beam.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, color_1),
-        ColorSequenceKeypoint.new(1, color_2),
-    })
-    beam.Attachment0 = attachment0
-    beam.Attachment1 = attachment1
-    beam.Enabled = true
-    beam.Parent = main_part
-    -- Устанавливаем размер трассера
-    local tracer_size = flags["tracer_size"] or 1
-    beam.Width0 = tracer_size
-    beam.Width1 = tracer_size
-    -- Живёт duration секунд, затем затухает fade_duration
-    task.delay(duration, function()
-        if fade_enabled then
-            local fade_time = 0
-            local start_transparency = 0
-            local connection
-            connection = RunService.Heartbeat:Connect(function(dt)
-                fade_time = fade_time + dt
-                local alpha = math.clamp(fade_time / fade_duration, 0, 1)
-                beam.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, start_transparency + (1 - start_transparency) * alpha),
-                    NumberSequenceKeypoint.new(1, start_transparency + (1 - start_transparency) * alpha),
-                })
-                if alpha >= 1 then
-                    connection:Disconnect()
-                    main_part:Destroy()
-                end
-            end)
-        else
-            main_part:Destroy()
+-- Toggle для включения/выключения индикатора
+InfoSection:Toggle({
+    Name = "Indicator",
+    Default = false,
+    Flag = "IndicatorEnabled",
+    Callback = function(Value)
+        -- Показываем/скрываем индикатор
+        Indicator:SetVisible(Value)
+        
+        -- При включении обновляем отображаемые элементы
+        if Value then
+            UpdateIndicatorElements()
         end
-    end)
-end
+    end
+})
 
-local function createVFXImpact(color, size, duration, texture, position)
-    local impactPart = Instance.new("Part")
-    impactPart.Name = "VFXBulletImpact"
-    impactPart.Transparency = 1
-    impactPart.CanCollide = false
-    impactPart.Anchored = true
-    impactPart.Size = Vector3.new(0.2, 0.2, 0.2)
-    impactPart.Position = position
-    impactPart.Parent = Workspace
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ImpactBillboard"
-    billboard.Adornee = impactPart
-    billboard.Size = UDim2.new(size, 0, size, 0)
-    billboard.StudsOffset = Vector3.new(0, 0, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = impactPart
-    local imageLabel = Instance.new("ImageLabel")
-    imageLabel.Size = UDim2.new(1, 0, 1, 0)
-    imageLabel.BackgroundTransparency = 1
-    imageLabel.Image = texture
-    imageLabel.ImageColor3 = color
-    imageLabel.Parent = billboard
-    local spin_speed = flags["impact_fade_speed"] or 1
-    local running = true
-    -- Крутится с нужной скоростью, пока не истечёт duration
-    spawn(function()
-        local start = tick()
-        while running and (tick() - start) < duration do
-            local t = tick() - start
-            imageLabel.Rotation = (t * 360 * spin_speed) % 360
-            task.wait() -- можно заменить на RunService.RenderStepped для плавности
+-- Выбор информации для индикатора
+InfoSection:List({
+    Name = "Info Elements",
+    Options = IndicatorOptions,
+    Default = {},
+    Max = #IndicatorOptions,
+    Flag = "IndicatorInfo",
+    Callback = function(Selected)
+        if Library.Flags["IndicatorEnabled"] then
+            UpdateIndicatorElements()
         end
-    end)
-    task.delay(duration, function()
-        running = false
-        impactPart:Destroy()
-    end)
+    end
+})
+
+-- Toggle для включения/выключения StaffList
+StaffSection:Toggle({
+    Name = "Staff List",
+    Default = false,
+    Flag = "StaffListEnabled",
+    Callback = function(Value)
+        -- Показываем/скрываем StaffList
+        StaffList:SetVisible(Value)
+    end
+})
+
+-- Функция для получения FPS
+local function GetFPS()
+    return math.floor(1/game:GetService("RunService").RenderStepped:Wait())
 end
 
-local function setupBulletEffects()
-    local data = detectGame()
-    if not data.BulletPath then
-        warn("Не удалось найти путь для пуль")
+-- Список вариантов информации для ватермарка
+local WatermarkOptions = {
+    "client",
+    "username",
+    "fps",
+    "time",
+    "date"
+}
+
+-- Переменные для отслеживания движения
+local lastPosition = nil
+local isMoving = false
+local movementThreshold = 0.05 -- Порог для определения движения
+
+-- Функция для получения координат персонажа
+local function GetCoordinates()
+    local player = game:GetService("Players").LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local pos = player.Character.HumanoidRootPart.Position
+        return string.format("%d,%d,%d", math.floor(pos.X), math.floor(pos.Y), math.floor(pos.Z))
+    end
+    return "N/A"
+end
+
+-- Функция для определения скорости персонажа
+local function GetSpeed()
+    local player = game:GetService("Players").LocalPlayer
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local humanoidRootPart = player.Character.HumanoidRootPart
+        -- Вычисляем только горизонтальную скорость (без учета вертикали)
+        local velocity = humanoidRootPart.Velocity
+        local horizSpeed = math.sqrt(velocity.X^2 + velocity.Z^2)
+        return string.format("%d s/s", math.floor(horizSpeed))
+    end
+    return "N/A"
+end
+
+-- Функция для получения состояния персонажа (в воздухе или на земле)
+local function GetState()
+    local player = game:GetService("Players").LocalPlayer
+    if player and player.Character then
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        
+        if humanoid then
+            -- Проверяем, находится ли персонаж на земле
+            if humanoid.FloorMaterial == Enum.Material.Air then
+                return "Air"
+                else
+                return "Ground"
+            end
+        end
+    end
+    return "N/A"
+end
+
+-- Функция для получения пинга
+local function GetPing()
+    local stats = game:GetService("Stats")
+    local ping = math.floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+    return ping .. "ms"
+end
+
+-- Функция для форматирования времени
+local function GetTimeFormatted()
+    local time = os.date("*t")
+    return string.format("%02d:%02d:%02d", time.hour, time.min, time.sec)
+end
+
+-- Функция для форматирования даты
+local function GetDateFormatted()
+    local date = os.date("*t")
+    return string.format("%02d/%02d/%d", date.day, date.month, date.year)
+end
+
+-- Функция для обновления содержимого индикатора на основе выбранных опций
+function UpdateIndicatorElements()
+    -- Получаем выбранные опции
+    local selectedOptions = Library.Flags["IndicatorInfo"] or {}
+    
+    -- Если список опций пуст, очищаем индикатор и завершаем функцию
+    if #selectedOptions == 0 then
+    Indicator:ClearAll()
         return
     end
-    local function getCurrentTracerTexture()
-        return tracer_textures[flags["tracer_texture"]] or tracer_textures[tracer_texture_names[1]]
+    
+    -- Создаем таблицу для быстрой проверки
+    local optionsMap = {}
+    for _, option in ipairs(selectedOptions) do
+        optionsMap[option] = true
     end
-    local beam_settings = {
-        texture = getCurrentTracerTexture(),
-        texture_length = 10,
-        light_emission = 1,
-        light_influence = 1
+    
+    -- Находим элементы, которые нужно удалить (те, которые есть, но не выбраны)
+    for _, key in ipairs({"coordinates", "state", "ping", "speed"}) do
+        if Indicator:HasElement(key) and not optionsMap[key] then
+            Indicator:RemoveElement(key)
+        end
+    end
+    
+    -- Добавляем или обновляем выбранные элементы
+    if optionsMap["coordinates"] then
+            Indicator:NewValue({
+                Key = "coordinates",
+                Name = "Coords:",
+                Value = GetCoordinates()
+            })
+    end
+    
+    if optionsMap["state"] then
+            Indicator:NewValue({
+                Key = "state",
+            Name = "Air/Ground:",
+                Value = GetState()
+            })
+    end
+    
+    if optionsMap["ping"] then
+            Indicator:NewValue({
+                Key = "ping",
+                Name = "Ping:",
+                Value = GetPing()
+            })
+    end
+    
+    if optionsMap["speed"] then
+            Indicator:NewValue({
+                Key = "speed",
+                Name = "Speed:",
+                Value = GetSpeed()
+            })
+    end
+end
+
+-- Функция для периодического обновления значений индикатора
+spawn(function()
+    while wait(0.1) do
+        if Library.Flags["IndicatorEnabled"] then
+            -- Получаем выбранные опции
+            local selectedOptions = Library.Flags["IndicatorInfo"] or {}
+            
+            -- Если нет выбранных опций, пропускаем
+            if #selectedOptions == 0 then
+                continue
+            end
+            
+            -- Создаем таблицу для быстрой проверки
+            local optionsMap = {}
+            for _, option in ipairs(selectedOptions) do
+                optionsMap[option] = true
+            end
+            
+            -- Безопасно обновляем каждое значение, только если оно выбрано и существует
+            if optionsMap["coordinates"] and Indicator:HasElement("coordinates") then
+                Indicator:SafeUpdateValue("coordinates", GetCoordinates())
+            end
+            
+            if optionsMap["state"] and Indicator:HasElement("state") then
+                Indicator:SafeUpdateValue("state", GetState())
+            end
+            
+            if optionsMap["ping"] and Indicator:HasElement("ping") then
+                Indicator:SafeUpdateValue("ping", GetPing())
+            end
+            
+            if optionsMap["speed"] and Indicator:HasElement("speed") then
+                Indicator:SafeUpdateValue("speed", GetSpeed())
+            end
+        end
+    end
+end)
+
+-- Функция для обновления текста ватермарка
+local function UpdateWatermark()
+    -- Получаем выбранные опции
+    local selectedOptions = Library.Flags["WatermarkInfo"] or {}
+    if #selectedOptions == 0 then
+        Watermark:UpdateText("Select watermark info ")
+        return
+    end
+    
+    -- Создаем таблицу для компонентов в правильном порядке
+    local components = {}
+    
+    -- Проверяем каждую опцию в порядке, указанном пользователем
+    for _, option in ipairs(WatermarkOptions) do
+        if table.find(selectedOptions, option) then
+            if option == "client" then
+                table.insert(components, "FULL.SKID")
+            elseif option == "username" then
+                local player = game:GetService("Players").LocalPlayer
+                table.insert(components, player and player.Name or "User")
+            elseif option == "fps" then
+                table.insert(components, "FPS: " .. GetFPS())
+            elseif option == "time" then
+                table.insert(components, GetTimeFormatted())
+            elseif option == "date" then
+                table.insert(components, GetDateFormatted())
+            end
+        end
+    end
+    
+    -- Объединяем все компоненты в одну строку с разделителем и добавляем отступ в конце
+    Watermark:UpdateText(table.concat(components, " | ") .. " ")
+end
+
+-- Функция для установки позиции ватермарки
+local function SetWatermarkPosition(position)
+    if Watermark then
+        -- Просто вызываем метод SetPosition из библиотеки
+        Watermark:SetPosition(position)
+    end
+end
+
+-- Добавляем управление ватермарком в секцию Presets
+PresetsSection:Toggle({
+    Name = "Watermark",
+    Default = false,
+    Flag = "WatermarkEnabled",
+    Callback = function(Value)
+        if Watermark then
+            Watermark:SetVisible(Value)
+            -- При включении сразу обновляем текст
+            if Value then
+                UpdateWatermark()
+                -- Применяем текущую выбранную позицию
+                SetWatermarkPosition(Library.Flags["WatermarkPosition"] or "left")
+            end
+        end
+    end
+})
+
+-- Список вариантов позиций для ватермарка
+local PositionOptions = {
+    "left",
+    "right",
+    "bottom",
+    "top"
+}
+
+-- Добавляем выбор позиции для ватермарка
+PresetsSection:List({
+    Name = "WM Position",
+    Options = PositionOptions,
+    Default = "left",
+    Flag = "WatermarkPosition",
+    Callback = function(Selected)
+        if Library.Flags["WatermarkEnabled"] and Watermark then
+            -- Используем новую функцию для позиционирования
+            SetWatermarkPosition(Selected)
+        end
+    end
+})
+
+-- Создаем мультибокс для выбора информации ватермарка
+PresetsSection:List({
+    Name = "WM Content",
+    Options = WatermarkOptions,
+    Default = {},
+    Max = #WatermarkOptions, -- Разрешаем выбрать все опции
+    Flag = "WatermarkInfo",
+    Callback = function(Selected)
+        UpdateWatermark()
+    end
+})
+
+-- Функция для периодического обновления ватермарка
+spawn(function()
+    while wait(1) do
+        if Library.Flags["WatermarkEnabled"] and Watermark then
+            UpdateWatermark()
+        end
+    end
+end)
+
+-- Создаем секцию для Keybinds List в Config
+local KeybindsSection = ConfigPage:Section({
+    Name = "Keybinds",
+    Side = "left"
+})
+
+-- Создаем KeybindsList
+local KeybindsList = Library:KeybindsList({
+    Name = "Keybinds List",
+    Flags = {} -- Заполним после выбора
+})
+
+-- Устанавливаем начальную позицию в правом верху экрана
+KeybindsList:SetPosition("right")
+
+-- Список доступных кейбиндов (флаги и названия)
+local AvailableKeybinds = {
+    {Flag = "ToggleGUI", Name = "Toggle GUI"},
+    -- Добавь сюда свои кейбинды, если появятся новые
+}
+
+local KeybindFlags = {}
+local KeybindNames = {}
+for _, v in ipairs(AvailableKeybinds) do
+    table.insert(KeybindFlags, v.Flag)
+    table.insert(KeybindNames, v.Name)
+end
+
+-- Toggle для включения/выключения Keybinds List
+KeybindsSection:Toggle({
+    Name = "Keybinds List",
+    Default = false,
+    Flag = "KeybindsListEnabled",
+    Callback = function(Value)
+        KeybindsList:SetVisible(Value)
+        
+        -- При включении обновляем отображаемые элементы
+        if Value then
+            local selectedFlags = {}
+            local selectedOptions = Library.Flags["KeybindsListFlags"] or {}
+            
+            for i, name in ipairs(KeybindNames) do
+                if table.find(selectedOptions, name) then
+                    table.insert(selectedFlags, KeybindFlags[i])
+                end
+            end
+            
+            KeybindsList:SetFlags(selectedFlags)
+        end
+    end
+})
+
+-- Мультибокс для выбора отображаемых кейбиндов
+KeybindsSection:List({
+    Name = "Show Keybinds",
+    Options = KeybindNames,
+    Default = {KeybindNames[1]}, -- По умолчанию выбираем первый кейбинд
+    Max = #KeybindNames,
+    Flag = "KeybindsListFlags",
+    Callback = function(selected)
+        -- Преобразуем выбранные имена в флаги
+        local selectedFlags = {}
+        for i, name in ipairs(KeybindNames) do
+            if table.find(selected, name) then
+                table.insert(selectedFlags, KeybindFlags[i])
+            end
+        end
+        KeybindsList:SetFlags(selectedFlags)
+    end
+})
+
+-- Create a notification to show the UI is loaded
+Library:Notification("UI loaded successfully", 3)
+
+-- Manually add InputBegan event for Insert key as backup toggle
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Insert then
+        Library:SetOpen(not Library.Open)
+    end
+end)
+
+-- Create Misc sections
+local FeaturesSection = MiscPage:Section({
+    Name = "Features",
+    Side = "left"
+})
+
+-- Create Player Features section
+local PlayerFeaturesSection = MiscPage:Section({
+    Name = "Player Features",
+    Side = "left"
+})
+
+-- Initialize Desync variables and functions
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local playerName = LocalPlayer.Name
+
+-- Desync settings and variables
+local Settings = {
+    AntiAim = {
+        FFlagDesync = {
+            Enabled = true,
+            Amount = 20,
+            SetNew = true,
+            SetNewAmount = 60,
+            FFlags = {
+                ["S2PhysicsSenderRate"] = true,
+                ["PhysicsSenderMaxBandwidthBps"] = false,
+                ["DataSenderMaxJoinBandwidthBps"] = false
+            }
+        }
     }
-    data.BulletPath.ChildAdded:Connect(function(object)
-        if object.Name == data.BulletName then
-            local gunBeam = object:FindFirstChild(data.BulletBeamName) or object:WaitForChild(data.BulletBeamName, 1)
-            if not gunBeam then return end
-            local startPos = object.Position
-            local endPos = gunBeam.Attachment1.WorldPosition
-            -- Сначала impact, потом destroy gunBeam если нужно
-            if flags["impacts_enabled"] then
-                createVFXImpact(
-                    getColor3FromFlag("impact_color", Color3.fromRGB(255,0,0)),
-                    flags["impact_size"] or 3,
-                    flags["impact_duration"] or 2,
-                    impact_textures[flags["impact_texture"]] or impact_textures[impact_texture_names[1]],
-                    endPos
-                )
+}
+
+local state = false
+local defaultFFlagValues = {}
+local currentClone = nil
+
+local Script = {}
+Script.Functions = {}
+
+-- Save default FFlag values
+Script.Functions.SaveDefaultFFlags = function()
+    for FFlag, _ in pairs(Settings.AntiAim.FFlagDesync.FFlags) do
+        defaultFFlagValues[FFlag] = getfflag(FFlag) or "0"
+    end
+end
+
+-- Apply/reset desync
+Script.Functions.FFlagDesync = function()
+    if not Settings.AntiAim.FFlagDesync.Enabled then return end
+
+    for FFlag, _ in pairs(Settings.AntiAim.FFlagDesync.FFlags) do
+        if state then
+            local Value = Settings.AntiAim.FFlagDesync.Amount
+            setfflag(FFlag, tostring(Value))
+            RunService.RenderStepped:Wait()
+            if Settings.AntiAim.FFlagDesync.SetNew then
+                setfflag(FFlag, tostring(Settings.AntiAim.FFlagDesync.SetNewAmount))
             end
-            if flags["tracers_enabled"] then
-                gunBeam:Destroy()
-                -- обновляем beam_settings.texture на актуальный
-                beam_settings.texture = getCurrentTracerTexture()
-                createBeam(
-                    startPos,
-                    endPos,
-                    getColor3FromFlag("tracer_color1", Color3.fromRGB(255,0,0)),
-                    getColor3FromFlag("tracer_color2", Color3.fromRGB(0,0,255)),
-                    flags["tracer_duration"] or 2,
-                    flags["tracer_fade_enabled"] == nil and true or flags["tracer_fade_enabled"],
-                    flags["tracer_fade_duration"] or 2,
-                    beam_settings
-                )
+        else
+            if defaultFFlagValues[FFlag] then
+                setfflag(FFlag, defaultFFlagValues[FFlag])
             end
+        end
+    end
+end
+
+-- Reset clone and desync
+local function resetClone()
+    if currentClone then
+        currentClone:Destroy()
+        currentClone = nil
+    end
+    state = false
+    Script.Functions.FFlagDesync()
+end
+
+-- Create visual clone
+local function createVisualClone()
+    if currentClone then
+        currentClone:Destroy()
+    end
+    
+    local cloneModel = Instance.new("Model")
+    cloneModel.Name = "0x78"
+    local partMap = {}
+    local originalHRP = character:WaitForChild("HumanoidRootPart")
+    local cloneHRP = nil
+
+    local function disableCollision(obj)
+        for _, part in pairs(obj:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Anchored = true
+                part.CanTouch = false
+                part.Massless = true
+            end
+        end
+    end
+
+    -- Copy body parts excluding tools
+    for _, child in pairs(character:GetDescendants()) do
+        if child:IsA("BasePart") and not child.Parent:IsA("Accessory") and not child:IsA("Tool") and not child.Parent:IsA("Tool") then
+            local clonePart = child:Clone()
+            for _, descendant in pairs(clonePart:GetDescendants()) do
+                if descendant:IsA("Motor6D") or descendant:IsA("Weld") then
+                    descendant:Destroy()
+                end
+            end
+            if clonePart.Name == "Head" and clonePart:IsA("MeshPart") then
+                clonePart.TextureID = ""
+            end
+            clonePart.CanCollide = false
+            clonePart.Anchored = true
+            clonePart.CanTouch = false
+            clonePart.Massless = true
+            clonePart.Parent = cloneModel
+            partMap[clonePart] = child
+            if clonePart.Name == "HumanoidRootPart" then
+                cloneHRP = clonePart
+            end
+        elseif child:IsA("Accessory") then
+            local cloneAccessory = child:Clone()
+            for _, accessoryPart in pairs(cloneAccessory:GetDescendants()) do
+                if accessoryPart:IsA("Motor6D") or accessoryPart:IsA("Weld") or accessoryPart:IsA("Attachment") then
+                    accessoryPart:Destroy()
+                end
+                if accessoryPart:IsA("BasePart") then
+                    accessoryPart.CanCollide = false
+                    accessoryPart.Anchored = true
+                    accessoryPart.CanTouch = false
+                    accessoryPart.Massless = true
+                    local originalHandle = child:FindFirstChildWhichIsA("BasePart")
+                    if originalHandle then
+                        partMap[accessoryPart] = originalHandle
+                    end
+                end
+            end
+            cloneAccessory.Parent = cloneModel
+        end
+    end
+
+    -- Copy clothing
+    local playerPath = workspace:WaitForChild("Players"):WaitForChild(playerName)
+    if playerPath:FindFirstChild("Pants") then
+        local pantsClone = playerPath.Pants:Clone()
+        pantsClone.Parent = cloneModel
+    end
+    if playerPath:FindFirstChild("Shirt") then
+        local shirtClone = playerPath.Shirt:Clone()
+        shirtClone.Parent = cloneModel
+    end
+
+    -- Final collision check
+    disableCollision(cloneModel)
+    cloneModel.PrimaryPart = cloneHRP
+    cloneModel.Parent = workspace
+    currentClone = cloneModel
+
+    -- Freeze clone in current state
+    for clonedPart, originalPart in pairs(partMap) do
+        clonedPart.CFrame = originalPart.CFrame
+    end
+
+    -- Monitor clone changes
+    cloneModel.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("BasePart") then
+            descendant.CanCollide = false
+            descendant.Anchored = true
+            descendant.CanTouch = false
+            descendant.Massless = true
         end
     end)
 end
 
-setupBulletEffects()
+-- Character death handler
+local function onCharacterDeath()
+    resetClone()
+end
+
+-- Character respawn handler
+local function onCharacterAdded(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(onCharacterDeath)
+end
+
+-- Subscribe to death and respawn events
+humanoid.Died:Connect(onCharacterDeath)
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+-- Create Desync toggle and keybind
+local DesyncToggle = PlayerFeaturesSection:Toggle({
+    Name = "Desync",
+    Default = false,
+    Flag = "DesyncEnabled",
+    Callback = function(Value)
+        if not Value then
+            -- When toggle is disabled, force disable desync
+            state = false
+            resetClone()
+        end
+    end
+})
+
+-- Create Desync keybind
+PlayerFeaturesSection:Keybind({
+    Name = "Desync Key",
+    Flag = "DesyncKey",
+    Mode = "Hold", -- Changed to Hold mode
+    Callback = function(keyState)
+        -- Only process keybind if desync is enabled via toggle
+        if not Library.Flags["DesyncEnabled"] then return end
+        
+        -- Update state based on key state
+        if keyState then
+            if not state then -- Only create clone if not already created
+                state = true
+                createVisualClone()
+                Script.Functions.FFlagDesync()
+            end
+        else
+            if state then -- Only reset if currently active
+                resetClone()
+            end
+        end
+    end
+})
+
+-- Save initial FFlags
+Script.Functions.SaveDefaultFFlags()
+
+-- Continue heartbeat monitoring
+RunService.Heartbeat:Connect(function()
+    if state and humanoid.Health > 0 then
+        Script.Functions.FFlagDesync()
+    elseif state and humanoid.Health <= 0 then
+        resetClone()
+    end
+end)
+
+-- Add desync to available keybinds list
+table.insert(AvailableKeybinds, {Flag = "DesyncKey", Name = "Desync"})
+-- Update KeybindFlags and KeybindNames
+KeybindFlags = {}
+KeybindNames = {}
+for _, v in ipairs(AvailableKeybinds) do
+    table.insert(KeybindFlags, v.Flag)
+    table.insert(KeybindNames, v.Name)
+end
+
+-- Variable to hold the Anti AFK connection
+local antiAfkConnection = nil
+
+-- Anti AFK Toggle
+FeaturesSection:Toggle({
+    Name = "Anti AFK",
+    Default = false,
+    Flag = "AntiAFKEnabled",
+    Callback = function(value)
+        local VirtualUser = game:GetService("VirtualUser")
+        local LocalPlayer = game:GetService("Players").LocalPlayer
+
+        if value then -- Enable Anti AFK
+            if LocalPlayer and antiAfkConnection == nil then
+                antiAfkConnection = LocalPlayer.Idled:Connect(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                end)
+            end
+        else -- Disable Anti AFK
+            if antiAfkConnection ~= nil then
+                antiAfkConnection:Disconnect()
+                antiAfkConnection = nil
+            end
+        end
+    end
+})
