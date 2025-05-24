@@ -455,6 +455,8 @@ KeybindsList:SetPosition("right")
 -- Список доступных кейбиндов (флаги и названия)
 local AvailableKeybinds = {
     {Flag = "ToggleGUI", Name = "Toggle GUI"},
+    {Flag = "RizzTalkKey", Name = "Rizz Talk"},
+    {Flag = "AdTalkKey", Name = "Ad Talk"}
     -- Добавь сюда свои кейбинды, если появятся новые
 }
 
@@ -1627,6 +1629,19 @@ local adWords = {
     "Visit our website for more information and special offers!"
 }
 
+local trashWords = {
+    "You're so fake, even the truth hurts.",
+    "I'd agree with you, but then we'd both be wrong.",
+    "You're like a software update. Whenever I see you, I think, 'Not now.'",
+    "If ignorance is bliss, you must be the happiest person on earth.",
+    "You're proof that even evolution makes mistakes.",
+    "I'd call you a tool, but that implies you're actually useful.",
+    "You're like a cloud. When you disappear, it's a beautiful day.",
+    "If I had a dollar for every time I ignored you, I wouldn't have any money.",
+    "You're the reason God created the middle finger.",
+    "I'd explain it to you, but I left my English-to-Dingbat dictionary at home."
+}
+
 -- Configuration
 local rizzConfig = {
     enabled = false,
@@ -1636,6 +1651,13 @@ local rizzConfig = {
 }
 
 local adConfig = {
+    enabled = false,
+    active = false,
+    cooldown = 1,
+    lastSent = 0
+}
+
+local trashConfig = {
     enabled = false,
     active = false,
     cooldown = 1,
@@ -1721,6 +1743,37 @@ FunStuffSection:Keybind({
     end
 })
 
+-- Create Trash Talk toggle
+FunStuffSection:Toggle({
+    Name = "Trash Talk",
+    Default = false,
+    Flag = "TrashTalkEnabled",
+    Callback = function(value)
+        trashConfig.enabled = value
+        if value then
+            Library:Notification("Trash Talk Enabled", 1)
+        else
+            trashConfig.active = false
+            Library:Notification("Trash Talk Disabled", 1)
+        end
+    end
+})
+
+-- Create Trash Talk keybind
+FunStuffSection:Keybind({
+    Name = "Trash Talk Key",
+    Default = Enum.KeyCode.Y,
+    Flag = "TrashTalkKey",
+    Mode = "Toggle",
+    Callback = function(state)
+        if not trashConfig.enabled then return end
+        trashConfig.active = state
+        if state then
+            sendMessage(trashWords, trashConfig)
+        end
+    end
+})
+
 -- Main loop for spam handling
 RunService.Heartbeat:Connect(function()
     if rizzConfig.enabled and rizzConfig.active then
@@ -1728,5 +1781,8 @@ RunService.Heartbeat:Connect(function()
     end
     if adConfig.enabled and adConfig.active then
         sendMessage(adWords, adConfig)
+    end
+    if trashConfig.enabled and trashConfig.active then
+        sendMessage(trashWords, trashConfig)
     end
 end)
