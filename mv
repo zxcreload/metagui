@@ -1342,3 +1342,53 @@ MovementFeaturesSection:Toggle({
         end
     end
 })
+
+-- Initialize NoRecoil variables
+local originalNewIndex = nil
+local noRecoilEnabled = false
+
+-- Helper functions for NoRecoil
+local function isframework(scriptInstance)
+    if tostring(scriptInstance) == "Framework" then
+        return true
+    end
+    return false
+end
+
+local function checkArgs(instance, index)
+    if tostring(instance):lower():find("camera") and tostring(index) == "CFrame" then
+        return true
+    end
+    return false
+end
+
+-- Create NoRecoil toggle
+PlayerFeaturesSection:Toggle({
+    Name = "NoRecoil",
+    Default = false,
+    Flag = "NoRecoilEnabled",
+    Callback = function(value)
+        if value then
+            if not noRecoilEnabled then
+                originalNewIndex = hookmetamethod(game, "__newindex", function(self, index, value)
+                    local callingScr = getcallingscript()
+                    
+                    if isframework(callingScr) and checkArgs(self, index) then
+                        return
+                    end
+                    
+                    return originalNewIndex(self, index, value)
+                end)
+                noRecoilEnabled = true
+            end
+            Library:Notification("NoRecoil Enabled", 1)
+        else
+            -- Restore original functionality
+            if noRecoilEnabled and originalNewIndex then
+                hookmetamethod(game, "__newindex", originalNewIndex)
+                noRecoilEnabled = false
+            end
+            Library:Notification("NoRecoil Disabled", 1)
+        end
+    end
+})
