@@ -1074,6 +1074,14 @@ local originalShadowSettings = {
     ShadowSoftness = Lighting.ShadowSoftness
 }
 
+-- Function to disable shadows
+local function disableShadows()
+    if Library.Flags["DisableShadowsEnabled"] then
+        Lighting.GlobalShadows = false
+        Lighting.ShadowSoftness = 0
+    end
+end
+
 -- Create DisableShadows toggle
 FeaturesSection:Toggle({
     Name = "DisableShadows",
@@ -1081,16 +1089,18 @@ FeaturesSection:Toggle({
     Flag = "DisableShadowsEnabled",
     Callback = function(value)
         if value then
-            -- Disable shadows
-            Lighting.GlobalShadows = false
-            Lighting.ShadowSoftness = 0
-            isShadowsEnabled = false
+            -- Start the shadow disable loop
+            spawn(function()
+                while Library.Flags["DisableShadowsEnabled"] do
+                    disableShadows()
+                    wait(5)
+                end
+            end)
             Library:Notification("Shadows Disabled", 1)
         else
             -- Restore original shadow settings
             Lighting.GlobalShadows = originalShadowSettings.GlobalShadows
             Lighting.ShadowSoftness = originalShadowSettings.ShadowSoftness
-            isShadowsEnabled = true
             Library:Notification("Shadows Restored", 1)
         end
     end
@@ -1248,6 +1258,68 @@ FeaturesSection:Toggle({
                     end
                 end
             end)
+        end
+    end
+})
+
+-- Initialize AntiMask variables
+local Players = game:GetService("Players")
+local isDisplayNameOverrideEnabled = false
+
+-- Function to update player's display name
+local function updatePlayerDisplayName(player)
+    if not Library.Flags["AntiMaskEnabled"] then
+        -- If disabled, return server value
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.DisplayName = nil
+        end
+        return
+    end
+
+    -- If enabled, set DisplayName
+    pcall(function()
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.DisplayName = player.DisplayName
+        end
+    end)
+end
+
+-- Function to update all players
+local function updateAllPlayers()
+    for _, player in pairs(Players:GetPlayers()) do
+        updatePlayerDisplayName(player)
+    end
+end
+
+-- Player added handler
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        updatePlayerDisplayName(player)
+    end)
+end)
+
+-- Create AntiMask toggle
+FeaturesSection:Toggle({
+    Name = "AntiMask",
+    Default = false,
+    Flag = "AntiMaskEnabled",
+    Callback = function(value)
+        if value then
+            spawn(function()
+                while Library.Flags["AntiMaskEnabled"] do
+                    updateAllPlayers()
+                    wait(5)
+                end
+            end)
+            Library:Notification("AntiMask Enabled", 1)
+        else
+            -- Restore original display names
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.DisplayName = nil
+                end
+            end
+            Library:Notification("AntiMask Disabled", 1)
         end
     end
 })
