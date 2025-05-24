@@ -521,19 +521,19 @@ end)
 
 -- Create Misc sections
 local FeaturesSection = MiscPage:Section({
-    Name = "Features",
+    Name = "General",
     Side = "left"
 })
 
 -- Create Player Features section
 local PlayerFeaturesSection = MiscPage:Section({
-    Name = "Player Features",
+    Name = "Player",
     Side = "left"
 })
 
 -- Create Movement Features section
 local MovementFeaturesSection = MiscPage:Section({
-    Name = "Movement Features",
+    Name = "Movement",
     Side = "right"
 })
 
@@ -813,7 +813,7 @@ local DesyncToggle = PlayerFeaturesSection:Toggle({
 
 -- Create Auto Blink toggle
 PlayerFeaturesSection:Toggle({
-    Name = "Auto Blink",
+    Name = "AutoBlink",
     Default = false,
     Flag = "AutoBlinkEnabled",
     Callback = function(Value)
@@ -823,7 +823,7 @@ PlayerFeaturesSection:Toggle({
 
 -- Create Blink Latency textbox
 PlayerFeaturesSection:Textbox({
-    Name = "Blink Latency (s)",
+    Name = "BlinkLatency",
     Flag = "BlinkLatency",
     Default = "0.5",
     Callback = function(Value)
@@ -836,7 +836,7 @@ PlayerFeaturesSection:Textbox({
 
 -- Create Desync keybind
 PlayerFeaturesSection:Keybind({
-    Name = "Desync Key",
+    Name = "DesyncKeybind",
     Flag = "DesyncKey",
     Mode = "Hold", -- Changed to Hold mode
     Callback = function(keyState)
@@ -906,7 +906,7 @@ local antiAfkConnection = nil
 
 -- Anti AFK Toggle
 FeaturesSection:Toggle({
-    Name = "Anti AFK",
+    Name = "AntiAFK",
     Default = false,
     Flag = "AntiAFKEnabled",
     Callback = function(value)
@@ -938,7 +938,7 @@ local finobe2 = nil
 
 -- Destroy Cheaters Toggle
 FeaturesSection:Toggle({
-    Name = "Destroy Cheaters",
+    Name = "DestroyCheaters",
     Default = false,
     Flag = "DestroyCheatersEnabled",
     Callback = function(value)
@@ -999,7 +999,7 @@ local newindex = nil
 
 -- Add No Jump Cooldown Toggle to Movement Features section
 MovementFeaturesSection:Toggle({
-    Name = "No JC",
+    Name = "NoJumpCooldown",
     Default = false,
     Flag = "NoJumpCooldownEnabled",
     Callback = function(value)
@@ -1026,7 +1026,7 @@ local antiSitEnabled = false
 
 -- Create Anti Sit toggle
 MovementFeaturesSection:Toggle({
-    Name = "Anti Sit",
+    Name = "AntiSit",
     Default = false,
     Flag = "AntiSitEnabled",
     Callback = function(value)
@@ -1076,7 +1076,7 @@ local originalShadowSettings = {
 
 -- Create DisableShadows toggle
 FeaturesSection:Toggle({
-    Name = "Disable Shadows",
+    Name = "DisableShadows",
     Default = false,
     Flag = "DisableShadowsEnabled",
     Callback = function(value)
@@ -1114,7 +1114,7 @@ local originalChatSettings = {
 
 -- Create Chat Spy toggle
 FeaturesSection:Toggle({
-    Name = "Chat Spy",
+    Name = "ChatSpy",
     Default = false,
     Flag = "ChatSpyEnabled",
     Callback = function(value)
@@ -1207,7 +1207,7 @@ local originalDisplayNames = {}
 
 -- Create OnlyRobloname toggle in Features section
 FeaturesSection:Toggle({
-    Name = "Only DefaultName",
+    Name = "DefaultName",
     Default = false,
     Flag = "OnlyRoblonameEnabled",
     Callback = function(value)
