@@ -810,28 +810,7 @@ local DesyncToggle = PlayerFeaturesSection:Toggle({
     end
 })
 
--- Create Auto Blink toggle
-PlayerFeaturesSection:Toggle({
-    Name = "AutoBlink",
-    Default = false,
-    Flag = "AutoBlinkEnabled",
-    Callback = function(Value)
-        -- Auto blink logic will be handled in the heartbeat loop
-    end
-})
 
--- Create Blink Latency textbox
-PlayerFeaturesSection:Textbox({
-    Name = "BlinkLatency",
-    Flag = "BlinkLatency",
-    Default = "0.5",
-    Callback = function(Value)
-        local numberValue = tonumber(Value)
-        if numberValue then
-            Library.Flags["BlinkLatency"] = math.max(0.1, numberValue) -- Minimum 0.1s latency
-        end
-    end
-})
 
 -- Create Desync keybind
 PlayerFeaturesSection:Keybind({
@@ -870,21 +849,7 @@ RunService.Heartbeat:Connect(function()
     if state and humanoid.Health > 0 then
         Script.Functions.FFlagDesync()
 
-        -- Handle auto blink
-        if Library.Flags["AutoBlinkEnabled"] and Library.Flags["DesyncEnabled"] then
-            local currentTime = os.clock()
-            local blinkLatency = tonumber(Library.Flags["BlinkLatency"]) or 0.5
 
-            if currentTime - lastBlinkTime >= blinkLatency then
-                -- Reset and immediately reactivate desync to create blink effect
-                resetClone()
-                task.wait() -- Small wait to ensure reset is processed
-                state = true
-                createVisualClone()
-                Script.Functions.FFlagDesync()
-                lastBlinkTime = currentTime
-            end
-        end
     elseif state and humanoid.Health <= 0 then
         resetClone()
     end
@@ -1389,6 +1354,236 @@ PlayerFeaturesSection:Toggle({
                 noRecoilEnabled = false
             end
             Library:Notification("NoRecoil Disabled", 1)
+        end
+    end
+})
+
+-- Initialize ShotSpam variables
+local UserInputService = game:GetService("UserInputService")
+local isFiring = false
+local fireRate = 0.0001
+
+-- Function to reduce cooldowns using debug
+local function reduceCooldowns(tool)
+    if tool and getconnections then
+        for _, connection in ipairs(getconnections(tool.Activated)) do
+            local func = connection.Function
+            if func then
+                local funcInfo = debug.getinfo(func)
+                for i = 1, funcInfo.nups do
+                    local c, n = debug.getupvalue(func, i)
+                    if type(c) == "number" then
+                        debug.setupvalue(func, i, 0.01)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to activate tool
+local function activateTool()
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        reduceCooldowns(tool)
+        if tool.Activate then
+            tool:Activate()
+        end
+    end
+end
+
+-- Create ShotSpam toggle
+PlayerFeaturesSection:Toggle({
+    Name = "ShotSpam",
+    Default = false,
+    Flag = "ShotSpamEnabled",
+    Callback = function(value)
+        if value then
+            -- Start the shot spam loop
+            spawn(function()
+                while Library.Flags["ShotSpamEnabled"] do
+                    if isFiring then
+                        activateTool()
+                    end
+                    task.wait(fireRate)
+                end
+            end)
+            Library:Notification("ShotSpam Enabled", 1)
+        else
+            Library:Notification("ShotSpam Disabled", 1)
+        end
+    end
+})
+
+-- Mouse input tracking
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and not gameProcessed then
+        isFiring = Library.Flags["ShotSpamEnabled"]
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isFiring = false
+    end
+end)
+
+-- Initialize AntiFling variables
+local antiFlingConnection = nil
+local playerAddedConnections = {}
+local lastPosition = nil
+
+-- Function to handle player detection and protection
+local function handlePlayer(player)
+    if player == LocalPlayer then return end
+    
+    local detected = false
+    local character
+    local primaryPart
+    
+    local function onCharacterAdded(newCharacter)
+        character = newCharacter
+        repeat
+            wait()
+            primaryPart = newCharacter:FindFirstChild("HumanoidRootPart")
+        until primaryPart
+        detected = false
+    end
+    
+    local heartbeatConnection
+    
+    -- Setup character monitoring
+    local function setupCharacterMonitoring()
+        if heartbeatConnection then heartbeatConnection:Disconnect() end
+        
+        heartbeatConnection = RunService.Heartbeat:Connect(function()
+            if not Library.Flags["AntiFlingEnabled"] then 
+                heartbeatConnection:Disconnect()
+                return 
+            end
+            
+            if (character and character:IsDescendantOf(workspace)) and (primaryPart and primaryPart:IsDescendantOf(character)) then
+                if primaryPart.AssemblyAngularVelocity.Magnitude > 50 or primaryPart.AssemblyLinearVelocity.Magnitude > 100 then
+                    if not detected then
+                        Library:Notification("Fling Exploit detected: " .. tostring(player), 3)
+                    end
+                    detected = true
+                    
+                    for _, v in ipairs(character:GetDescendants()) do
+                        if v:IsA("BasePart") then
+                            v.CanCollide = false
+                            v.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                            v.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                            v.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    if player.Character then onCharacterAdded(player.Character) end
+    player.CharacterAdded:Connect(onCharacterAdded)
+    setupCharacterMonitoring()
+    
+    return heartbeatConnection
+end
+
+-- Create AntiFling toggle
+PlayerFeaturesSection:Toggle({
+    Name = "AntiFling",
+    Default = false,
+    Flag = "AntiFlingEnabled",
+    Callback = function(value)
+        if value then
+            -- Setup protection for existing players
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    playerAddedConnections[player] = handlePlayer(player)
+                end
+            end
+            
+            -- Monitor new players
+            antiFlingConnection = Players.PlayerAdded:Connect(function(player)
+                playerAddedConnections[player] = handlePlayer(player)
+            end)
+            
+            -- Monitor LocalPlayer
+            local function monitorLocalPlayer()
+                if not LocalPlayer.Character then return end
+                local primaryPart = LocalPlayer.Character.PrimaryPart
+                if primaryPart then
+                    if primaryPart.AssemblyLinearVelocity.Magnitude > 250 or primaryPart.AssemblyAngularVelocity.Magnitude > 250 then
+                        primaryPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        primaryPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        if lastPosition then
+                            primaryPart.CFrame = lastPosition
+                        end
+                        Library:Notification("Fling attempt blocked!", 1)
+                    elseif primaryPart.AssemblyLinearVelocity.Magnitude < 50 then
+                        lastPosition = primaryPart.CFrame
+                    end
+                end
+            end
+            
+            spawn(function()
+                while Library.Flags["AntiFlingEnabled"] do
+                    pcall(monitorLocalPlayer)
+                    task.wait()
+                end
+            end)
+            
+            Library:Notification("AntiFling Enabled", 1)
+        else
+            -- Cleanup all connections
+            if antiFlingConnection then
+                antiFlingConnection:Disconnect()
+                antiFlingConnection = nil
+            end
+            
+            for player, connection in pairs(playerAddedConnections) do
+                if connection then
+                    connection:Disconnect()
+                end
+            end
+            playerAddedConnections = {}
+            
+            -- Reset state
+            lastPosition = nil
+            
+            Library:Notification("AntiFling Disabled", 1)
+        end
+    end
+})
+
+-- Initialize ServerJoinScriptShare variables
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+-- Function to generate teleport script
+local function generateTeleportScript()
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    
+    local teleportScript = string.format([[
+local TeleportService = game:GetService("TeleportService")
+TeleportService:TeleportToPlaceInstance(%d, "%s")
+]], placeId, jobId)
+    
+    return teleportScript
+end
+
+-- Create ServerJoinScriptShare button
+FeaturesSection:Button({
+    Name = "ShareServerScript",
+    Callback = function()
+        local script = generateTeleportScript()
+        
+        if setclipboard then
+            setclipboard(script)
+            Library:Notification("Server join script copied! Now u can share it with friends", 10)
+        else
+            Library:Notification("Your executor doesn't support clipboard function!", 3)
         end
     end
 })
