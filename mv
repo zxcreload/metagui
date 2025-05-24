@@ -1,6 +1,20 @@
 -- Load the MetaGUI library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/zxcreload/metagui/refs/heads/main/library"))()
 
+-- Initialize anti-cheat bypass
+for _, v in pairs(getgc(true)) do
+    if type(v) == "table" then
+        setreadonly(v, false)
+        local indexInstance = rawget(v, "indexInstance")
+        if type(indexInstance) == "table" and indexInstance[1] == "kick" then
+            setreadonly(indexInstance, false)
+            rawset(v, "Table", {"kick", function() coroutine.yield() end})
+            warn("\n---[ INFO ]---\nBypassed Adonis Anti-Cheat/Anti-Exploit.\nMethod: Prevented Script Table Communication With Server.")
+            break
+        end
+    end
+end
+
 -- Create a window
 local Window = Library:Window({
     Name = "FULL.SKID"
@@ -507,16 +521,392 @@ end)
 
 -- Create Misc sections
 local FeaturesSection = MiscPage:Section({
-    Name = "Features",
+    Name = "General",
     Side = "left"
 })
 
--- Variable to hold the Anti AFK connection
+-- Create Player Features section
+local PlayerFeaturesSection = MiscPage:Section({
+    Name = "Player",
+    Side = "left"
+})
+
+-- Create Movement Features section
+local MovementFeaturesSection = MiscPage:Section({
+    Name = "Movement",
+    Side = "right"
+})
+
+-- Initialize Noclip
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local NoclipEnabled = false
+local originalCollisionStates = {}
+
+-- Function to store original collision states
+local function SaveOriginalStates(character)
+    originalCollisionStates = {}
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            originalCollisionStates[part] = part.CanCollide
+        end
+    end
+end
+
+-- Function to restore original collision states
+local function RestoreOriginalStates(character)
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and originalCollisionStates[part] ~= nil then
+            part.CanCollide = originalCollisionStates[part]
+        end
+    end
+end
+
+local function UpdateNoclip()
+    if not LocalPlayer.Character then return end
+    
+    if NoclipEnabled then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    else
+        RestoreOriginalStates(LocalPlayer.Character)
+    end
+end
+
+-- Handle character respawning
+LocalPlayer.CharacterAdded:Connect(function(char)
+    wait(0.5) -- Wait for character to fully load
+    SaveOriginalStates(char)
+end)
+
+-- Save states for initial character
+if LocalPlayer.Character then
+    SaveOriginalStates(LocalPlayer.Character)
+end
+
+-- Create Noclip toggle
+MovementFeaturesSection:Toggle({
+    Name = "Noclip",
+    Default = false,
+    Flag = "NoclipEnabled",
+    Callback = function(Value)
+        NoclipEnabled = Value
+        if Value then
+            if LocalPlayer.Character then
+                SaveOriginalStates(LocalPlayer.Character)
+            end
+            Library:Notification("Noclip Enabled", 1)
+        else
+            if LocalPlayer.Character then
+                RestoreOriginalStates(LocalPlayer.Character)
+            end
+            Library:Notification("Noclip Disabled", 1)
+        end
+    end
+})
+
+-- Connect Noclip update to RenderStepped
+RunService.RenderStepped:Connect(UpdateNoclip)
+
+-- Initialize Desync variables and functions
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local playerName = LocalPlayer.Name
+
+-- Desync settings and variables
+local Settings = {
+    AntiAim = {
+        FFlagDesync = {
+            Enabled = true,
+            Amount = 20,
+            SetNew = true,
+            SetNewAmount = 60,
+            FFlags = {
+                ["S2PhysicsSenderRate"] = true,
+                ["PhysicsSenderMaxBandwidthBps"] = false,
+                ["DataSenderMaxJoinBandwidthBps"] = false
+            }
+        }
+    }
+}
+
+local state = false
+local defaultFFlagValues = {}
+local currentClone = nil
+
+local Script = {}
+Script.Functions = {}
+
+-- Save default FFlag values
+Script.Functions.SaveDefaultFFlags = function()
+    for FFlag, _ in pairs(Settings.AntiAim.FFlagDesync.FFlags) do
+        defaultFFlagValues[FFlag] = getfflag(FFlag) or "0"
+    end
+end
+
+-- Apply/reset desync
+Script.Functions.FFlagDesync = function()
+    if not Settings.AntiAim.FFlagDesync.Enabled then return end
+
+    for FFlag, _ in pairs(Settings.AntiAim.FFlagDesync.FFlags) do
+        if state then
+            local Value = Settings.AntiAim.FFlagDesync.Amount
+            setfflag(FFlag, tostring(Value))
+            RunService.RenderStepped:Wait()
+            if Settings.AntiAim.FFlagDesync.SetNew then
+                setfflag(FFlag, tostring(Settings.AntiAim.FFlagDesync.SetNewAmount))
+            end
+        else
+            if defaultFFlagValues[FFlag] then
+                setfflag(FFlag, defaultFFlagValues[FFlag])
+            end
+        end
+    end
+end
+
+-- Reset clone and desync
+local function resetClone()
+    if currentClone then
+        currentClone:Destroy()
+        currentClone = nil
+    end
+    state = false
+    Script.Functions.FFlagDesync()
+end
+
+-- Create visual clone
+local function createVisualClone()
+    if currentClone then
+        currentClone:Destroy()
+    end
+    
+    local cloneModel = Instance.new("Model")
+    cloneModel.Name = "0x78"
+    local partMap = {}
+    local originalHRP = character:WaitForChild("HumanoidRootPart")
+    local cloneHRP = nil
+
+    local function disableCollision(obj)
+        for _, part in pairs(obj:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Anchored = true
+                part.CanTouch = false
+                part.Massless = true
+            end
+        end
+    end
+
+    -- Copy body parts excluding tools
+    for _, child in pairs(character:GetDescendants()) do
+        if child:IsA("BasePart") and not child.Parent:IsA("Accessory") and not child:IsA("Tool") and not child.Parent:IsA("Tool") then
+            local clonePart = child:Clone()
+            for _, descendant in pairs(clonePart:GetDescendants()) do
+                if descendant:IsA("Motor6D") or descendant:IsA("Weld") then
+                    descendant:Destroy()
+                end
+            end
+            if clonePart.Name == "Head" and clonePart:IsA("MeshPart") then
+                clonePart.TextureID = ""
+            end
+            clonePart.CanCollide = false
+            clonePart.Anchored = true
+            clonePart.CanTouch = false
+            clonePart.Massless = true
+            clonePart.Parent = cloneModel
+            partMap[clonePart] = child
+            if clonePart.Name == "HumanoidRootPart" then
+                cloneHRP = clonePart
+            end
+        elseif child:IsA("Accessory") then
+            local cloneAccessory = child:Clone()
+            for _, accessoryPart in pairs(cloneAccessory:GetDescendants()) do
+                if accessoryPart:IsA("Motor6D") or accessoryPart:IsA("Weld") or accessoryPart:IsA("Attachment") then
+                    accessoryPart:Destroy()
+                end
+                if accessoryPart:IsA("BasePart") then
+                    accessoryPart.CanCollide = false
+                    accessoryPart.Anchored = true
+                    accessoryPart.CanTouch = false
+                    accessoryPart.Massless = true
+                    local originalHandle = child:FindFirstChildWhichIsA("BasePart")
+                    if originalHandle then
+                        partMap[accessoryPart] = originalHandle
+                    end
+                end
+            end
+            cloneAccessory.Parent = cloneModel
+        end
+    end
+
+    -- Copy clothing
+    local playerPath = workspace:WaitForChild("Players"):WaitForChild(playerName)
+    if playerPath:FindFirstChild("Pants") then
+        local pantsClone = playerPath.Pants:Clone()
+        pantsClone.Parent = cloneModel
+    end
+    if playerPath:FindFirstChild("Shirt") then
+        local shirtClone = playerPath.Shirt:Clone()
+        shirtClone.Parent = cloneModel
+    end
+
+    -- Final collision check
+    disableCollision(cloneModel)
+    cloneModel.PrimaryPart = cloneHRP
+    cloneModel.Parent = workspace
+    currentClone = cloneModel
+
+    -- Freeze clone in current state
+    for clonedPart, originalPart in pairs(partMap) do
+        clonedPart.CFrame = originalPart.CFrame
+    end
+
+    -- Monitor clone changes
+    cloneModel.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("BasePart") then
+            descendant.CanCollide = false
+            descendant.Anchored = true
+            descendant.CanTouch = false
+            descendant.Massless = true
+        end
+    end)
+end
+
+-- Character death handler
+local function onCharacterDeath()
+    resetClone()
+end
+
+-- Character respawn handler
+local function onCharacterAdded(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    humanoid.Died:Connect(onCharacterDeath)
+end
+
+-- Subscribe to death and respawn events
+humanoid.Died:Connect(onCharacterDeath)
+LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+-- Create Desync toggle and keybind
+local DesyncToggle = PlayerFeaturesSection:Toggle({
+    Name = "Desync",
+    Default = false,
+    Flag = "DesyncEnabled",
+    Callback = function(Value)
+        if not Value then
+            -- When toggle is disabled, force disable desync
+            state = false
+            resetClone()
+        end
+    end
+})
+
+-- Create Auto Blink toggle
+PlayerFeaturesSection:Toggle({
+    Name = "AutoBlink",
+    Default = false,
+    Flag = "AutoBlinkEnabled",
+    Callback = function(Value)
+        -- Auto blink logic will be handled in the heartbeat loop
+    end
+})
+
+-- Create Blink Latency textbox
+PlayerFeaturesSection:Textbox({
+    Name = "BlinkLatency",
+    Flag = "BlinkLatency",
+    Default = "0.5",
+    Callback = function(Value)
+        local numberValue = tonumber(Value)
+        if numberValue then
+            Library.Flags["BlinkLatency"] = math.max(0.1, numberValue) -- Minimum 0.1s latency
+        end
+    end
+})
+
+-- Create Desync keybind
+PlayerFeaturesSection:Keybind({
+    Name = "DesyncKeybind",
+    Flag = "DesyncKey",
+    Mode = "Hold", -- Changed to Hold mode
+    Callback = function(keyState)
+        -- Only process keybind if desync is enabled via toggle
+        if not Library.Flags["DesyncEnabled"] then return end
+        
+        -- Update state based on key state
+        if keyState then
+            if not state then -- Only create clone if not already created
+                state = true
+                createVisualClone()
+                Script.Functions.FFlagDesync()
+                Library:Notification("Desync Enabled", 1)
+            end
+        else
+            if state then -- Only reset if currently active
+                resetClone()
+                Library:Notification("Desync Disabled", 1)
+            end
+        end
+    end
+})
+
+-- Save initial FFlags
+Script.Functions.SaveDefaultFFlags()
+
+-- Initialize last blink time
+local lastBlinkTime = os.clock()
+
+-- Continue heartbeat monitoring
+RunService.Heartbeat:Connect(function()
+    if state and humanoid.Health > 0 then
+        Script.Functions.FFlagDesync()
+
+        -- Handle auto blink
+        if Library.Flags["AutoBlinkEnabled"] and Library.Flags["DesyncEnabled"] then
+            local currentTime = os.clock()
+            local blinkLatency = tonumber(Library.Flags["BlinkLatency"]) or 0.5
+
+            if currentTime - lastBlinkTime >= blinkLatency then
+                -- Reset and immediately reactivate desync to create blink effect
+                resetClone()
+                task.wait() -- Small wait to ensure reset is processed
+                state = true
+                createVisualClone()
+                Script.Functions.FFlagDesync()
+                lastBlinkTime = currentTime
+            end
+        end
+    elseif state and humanoid.Health <= 0 then
+        resetClone()
+    end
+end)
+
+-- Add desync to available keybinds list
+table.insert(AvailableKeybinds, {Flag = "DesyncKey", Name = "Desync"})
+-- Update KeybindFlags and KeybindNames
+KeybindFlags = {}
+KeybindNames = {}
+for _, v in ipairs(AvailableKeybinds) do
+    table.insert(KeybindFlags, v.Flag)
+    table.insert(KeybindNames, v.Name)
+end
+
+-- Initialize Anti AFK variables
 local antiAfkConnection = nil
 
 -- Anti AFK Toggle
 FeaturesSection:Toggle({
-    Name = "Anti AFK",
+    Name = "AntiAFK",
     Default = false,
     Flag = "AntiAFKEnabled",
     Callback = function(value)
@@ -535,6 +925,329 @@ FeaturesSection:Toggle({
                 antiAfkConnection:Disconnect()
                 antiAfkConnection = nil
             end
+        end
+    end
+})
+
+-- Initialize Destroy Cheaters variables
+local NewCFrame = CFrame.new
+local LocalFinobe = game:GetService("Players").LocalPlayer
+local Runfinobe = game:GetService("RunService")
+local destroyCheatersEnabled = false
+local finobe2 = nil
+
+-- Destroy Cheaters Toggle
+FeaturesSection:Toggle({
+    Name = "DestroyCheaters",
+    Default = false,
+    Flag = "DestroyCheatersEnabled",
+    Callback = function(value)
+        if not value and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") and finobe2 then
+            -- При выключении возвращаем в исходную позицию перед отключением
+            LocalFinobe.Character.HumanoidRootPart.CFrame = finobe2
+            finobe2 = nil
+        end
+        
+        destroyCheatersEnabled = value
+        getgenv().Finobe1 = value
+        
+        if value then
+            Library:Notification("Destroy Cheaters Enabled", 1)
+        else
+            Library:Notification("Destroy Cheaters Disabled", 1)
+        end
+    end
+})
+
+-- Create the connection
+Runfinobe.Heartbeat:Connect(function()
+    if LocalFinobe.Character and destroyCheatersEnabled then
+        local FinobeChar = LocalFinobe.Character:FindFirstChild("HumanoidRootPart")
+        if FinobeChar then
+            if getgenv().Finobe1 then
+                finobe2 = FinobeChar.CFrame
+                FinobeChar.CFrame = FinobeChar.CFrame * NewCFrame(9e9, 0/0, math.huge)
+                Runfinobe.RenderStepped:Wait()
+                if destroyCheatersEnabled then
+                    FinobeChar.CFrame = finobe2
+                end
+            end
+        end
+    end
+end)
+
+local hook
+hook = hookmetamethod(game, "__index", newcclosure(function(self, key)
+    if not checkcaller() then
+        if key == "CFrame" and getgenv().Finobe1 and LocalFinobe.Character and LocalFinobe.Character:FindFirstChild("HumanoidRootPart") and LocalFinobe.Character:FindFirstChild("Humanoid") and LocalFinobe.Character:FindFirstChild("Humanoid").Health > 0 then
+            if self == LocalFinobe.Character.HumanoidRootPart and finobe2 ~= nil then
+                return finobe2
+            end
+        end
+    end
+    return hook(self, key)
+end))
+
+-- Wait for game to load (auto-execute support)
+if not game:IsLoaded() then 
+    game.Loaded:Wait()
+end
+
+-- Initialize No Jump Cooldown variables
+local IsA = game.IsA
+local newindex = nil
+
+-- Add No Jump Cooldown Toggle to Movement Features section
+MovementFeaturesSection:Toggle({
+    Name = "NoJumpCooldown",
+    Default = false,
+    Flag = "NoJumpCooldownEnabled",
+    Callback = function(value)
+        if value then
+            -- Setup the hook when enabled
+            if not newindex then
+                newindex = hookmetamethod(game, "__newindex", function(self, Index, Value)
+                    if not checkcaller() and IsA(self, "Humanoid") and Index == "JumpPower" then 
+                        return
+                    end
+                    return newindex(self, Index, Value)
+                end)
+            end
+            Library:Notification("No Jump Cooldown Enabled", 1)
+        else
+            Library:Notification("No Jump Cooldown Disabled", 1)
+        end
+    end
+})
+
+-- Initialize Movement Features variables
+local savedSeats = {}
+local antiSitEnabled = false
+
+-- Create Anti Sit toggle
+MovementFeaturesSection:Toggle({
+    Name = "AntiSit",
+    Default = false,
+    Flag = "AntiSitEnabled",
+    Callback = function(value)
+        antiSitEnabled = value
+        
+        if value then
+            -- Store and remove seats
+            savedSeats = {}
+            for _, object in pairs(game:GetDescendants()) do
+                if object:IsA("Seat") or object:IsA("VehicleSeat") then
+                    table.insert(savedSeats, {
+                        object = object,
+                        parent = object.Parent,
+                        properties = {
+                            CFrame = object.CFrame,
+                            Anchored = object.Anchored,
+                            CanCollide = object.CanCollide
+                        }
+                    })
+                    object.Parent = nil -- Скрываем объект вместо удаления
+                end
+            end
+            Library:Notification("Anti Sit Enabled", 1)
+        else
+            -- Restore seats
+            for _, seatData in ipairs(savedSeats) do
+                if seatData.object and seatData.parent then
+                    seatData.object.CFrame = seatData.properties.CFrame
+                    seatData.object.Anchored = seatData.properties.Anchored
+                    seatData.object.CanCollide = seatData.properties.CanCollide
+                    seatData.object.Parent = seatData.parent
+                end
+            end
+            savedSeats = {}
+            Library:Notification("Anti Sit Disabled", 1)
+        end
+    end
+})
+
+-- Initialize shadows variables
+local Lighting = game:GetService("Lighting")
+local isShadowsEnabled = true
+local originalShadowSettings = {
+    GlobalShadows = Lighting.GlobalShadows,
+    ShadowSoftness = Lighting.ShadowSoftness
+}
+
+-- Create DisableShadows toggle
+FeaturesSection:Toggle({
+    Name = "DisableShadows",
+    Default = false,
+    Flag = "DisableShadowsEnabled",
+    Callback = function(value)
+        if value then
+            -- Disable shadows
+            Lighting.GlobalShadows = false
+            Lighting.ShadowSoftness = 0
+            isShadowsEnabled = false
+            Library:Notification("Shadows Disabled", 1)
+        else
+            -- Restore original shadow settings
+            Lighting.GlobalShadows = originalShadowSettings.GlobalShadows
+            Lighting.ShadowSoftness = originalShadowSettings.ShadowSoftness
+            isShadowsEnabled = true
+            Library:Notification("Shadows Restored", 1)
+        end
+    end
+})
+
+-- Initialize Chat Spy variables and function
+local chatSpyEnabled = false
+local spyOnMyself = true
+local public = false
+local publicItalics = true
+local privateProperties = {
+    Color = Color3.fromRGB(0,255,255); 
+    Font = Enum.Font.SourceSansBold;
+    TextSize = 18;
+}
+-- Save original chat settings
+local originalChatSettings = {
+    ChannelParentFrameVisible = nil,
+    BarParentFramePosition = nil
+}
+
+-- Create Chat Spy toggle
+FeaturesSection:Toggle({
+    Name = "ChatSpy",
+    Default = false,
+    Flag = "ChatSpyEnabled",
+    Callback = function(value)
+        if value then
+            chatSpyEnabled = true
+            -- Initialize Chat Spy
+            local StarterGui = game:GetService("StarterGui")
+            local Players = game:GetService("Players")
+            local player = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait() or Players.LocalPlayer
+            local saymsg = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest")
+            local getmsg = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("OnMessageDoneFiltering")
+            local instance = (_G.chatSpyInstance or 0) + 1
+            _G.chatSpyInstance = instance
+
+            -- Chat spy function
+            local function onChatted(p,msg)
+                if not chatSpyEnabled then return end
+                if _G.chatSpyInstance == instance then
+                    if p==player and msg:lower():sub(1,4)=="/spy" then
+                        chatSpyEnabled = not chatSpyEnabled
+                        wait(0.3)
+                        privateProperties.Text = "{SPY "..(chatSpyEnabled and "EN" or "DIS").."ABLED}"
+                        StarterGui:SetCore("ChatMakeSystemMessage",privateProperties)
+                    elseif chatSpyEnabled and (spyOnMyself==true or p~=player) then
+                        msg = msg:gsub("[\n\r]",''):gsub("\t",' '):gsub("[ ]+",' ')
+                        local hidden = true
+                        local conn = getmsg.OnClientEvent:Connect(function(packet,channel)
+                            if packet.SpeakerUserId==p.UserId and packet.Message==msg:sub(#msg-#packet.Message+1) and (channel=="All" or (channel=="Team" and public==false and Players[packet.FromSpeaker].Team==player.Team)) then
+                                hidden = false
+                            end
+                        end)
+                        wait(1)
+                        conn:Disconnect()
+                        if hidden and chatSpyEnabled then
+                            if public then
+                                saymsg:FireServer((publicItalics and "/me " or '').."{SPY} [".. p.Name .."]: "..msg,"All")
+                            else
+                                privateProperties.Text = "{SPY} [".. p.Name .."]: "..msg
+                                StarterGui:SetCore("ChatMakeSystemMessage",privateProperties)
+                            end
+                        end
+                    end
+                end
+            end
+
+            -- Connect chat events
+            for _,p in ipairs(Players:GetPlayers()) do
+                p.Chatted:Connect(function(msg) onChatted(p,msg) end)
+            end
+            Players.PlayerAdded:Connect(function(p)
+                p.Chatted:Connect(function(msg) onChatted(p,msg) end)
+            end)
+
+            -- Setup chat frame and save original settings
+            privateProperties.Text = "{SPY ENABLED}"
+            StarterGui:SetCore("ChatMakeSystemMessage",privateProperties)
+            if not player.PlayerGui:FindFirstChild("Chat") then wait(3) end
+            local chatFrame = player.PlayerGui.Chat.Frame
+            
+            -- Save original settings before modifying
+            originalChatSettings.ChannelParentFrameVisible = chatFrame.ChatChannelParentFrame.Visible
+            originalChatSettings.BarParentFramePosition = chatFrame.ChatBarParentFrame.Position
+            
+            -- Apply Chat Spy settings
+            chatFrame.ChatChannelParentFrame.Visible = true
+            chatFrame.ChatBarParentFrame.Position = chatFrame.ChatChannelParentFrame.Position+UDim2.new(UDim.new(),chatFrame.ChatChannelParentFrame.Size.Y)
+            
+            Library:Notification("Chat Spy Enabled", 1)
+        else
+            chatSpyEnabled = false
+            privateProperties.Text = "{SPY DISABLED}"
+            game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage",privateProperties)
+            
+            -- Restore original chat settings
+            local chatFrame = game:GetService("Players").LocalPlayer.PlayerGui.Chat.Frame
+            if originalChatSettings.ChannelParentFrameVisible ~= nil then
+                chatFrame.ChatChannelParentFrame.Visible = originalChatSettings.ChannelParentFrameVisible
+            end
+            if originalChatSettings.BarParentFramePosition ~= nil then
+                chatFrame.ChatBarParentFrame.Position = originalChatSettings.BarParentFramePosition
+            end
+            
+            Library:Notification("Chat Spy Disabled", 1)
+        end
+    end
+})
+
+-- Initialize original display names storage
+local originalDisplayNames = {}
+
+-- Create OnlyRobloname toggle in Features section
+FeaturesSection:Toggle({
+    Name = "DefaultName",
+    Default = false,
+    Flag = "OnlyRoblonameEnabled",
+    Callback = function(value)
+        if value then
+            pcall(function()
+                for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                    if v.Character and v.Character:FindFirstChild("Humanoid") then
+                        -- Store original display name before changing
+                        originalDisplayNames[v.Name] = v.Character:FindFirstChild("Humanoid").DisplayName
+                        -- Set to original name
+                        v.Character:FindFirstChild("Humanoid").DisplayName = v.Name
+                    end
+                end
+            end)
+            -- Handle new players joining
+            game:GetService("Players").PlayerAdded:Connect(function(player)
+                if player.Character then
+                    if player.Character:FindFirstChild("Humanoid") then
+                        originalDisplayNames[player.Name] = player.Character:FindFirstChild("Humanoid").DisplayName
+                        player.Character:FindFirstChild("Humanoid").DisplayName = player.Name
+                    end
+                end
+                player.CharacterAdded:Connect(function(char)
+                    if char:FindFirstChild("Humanoid") then
+                        originalDisplayNames[player.Name] = char:FindFirstChild("Humanoid").DisplayName
+                        char:FindFirstChild("Humanoid").DisplayName = player.Name
+                    end
+                end)
+            end)
+        else
+            pcall(function()
+                for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                    if v.Character and v.Character:FindFirstChild("Humanoid") then
+                        -- Restore original display name
+                        if originalDisplayNames[v.Name] then
+                            v.Character:FindFirstChild("Humanoid").DisplayName = originalDisplayNames[v.Name]
+                        end
+                    end
+                end
+            end)
         end
     end
 })
