@@ -275,7 +275,7 @@ function UpdateIndicatorElements()
     if optionsMap["state"] then
             Indicator:NewValue({
                 Key = "state",
-            Name = "Air/Ground:",
+            Name = "Position:",
                 Value = GetState()
             })
     end
@@ -399,7 +399,6 @@ PresetsSection:Toggle({
 local PositionOptions = {
     "left",
     "right",
-    "bottom",
     "top"
 }
 
@@ -1320,6 +1319,26 @@ FeaturesSection:Toggle({
                 end
             end
             Library:Notification("AntiMask Disabled", 1)
+        end
+    end
+})
+
+-- Initialize InfiniteZoom variables
+local Players = game:GetService("Players")
+local defaultMaxZoom = Players.LocalPlayer.CameraMaxZoomDistance
+
+-- Create InfiniteZoom toggle
+MovementFeaturesSection:Toggle({
+    Name = "InfiniteZoom",
+    Default = false,
+    Flag = "InfiniteZoomEnabled",
+    Callback = function(value)
+        if value then
+            Players.LocalPlayer.CameraMaxZoomDistance = math.huge
+            Library:Notification("Infinite Zoom Enabled", 1)
+        else
+            Players.LocalPlayer.CameraMaxZoomDistance = defaultMaxZoom
+            Library:Notification("Infinite Zoom Disabled", 1)
         end
     end
 })
