@@ -275,7 +275,7 @@ function UpdateIndicatorElements()
     if optionsMap["state"] then
             Indicator:NewValue({
                 Key = "state",
-            Name = "Air/Ground:",
+            Name = "Position:",
                 Value = GetState()
             })
     end
@@ -399,7 +399,6 @@ PresetsSection:Toggle({
 local PositionOptions = {
     "left",
     "right",
-    "bottom",
     "top"
 }
 
@@ -811,28 +810,7 @@ local DesyncToggle = PlayerFeaturesSection:Toggle({
     end
 })
 
--- Create Auto Blink toggle
-PlayerFeaturesSection:Toggle({
-    Name = "AutoBlink",
-    Default = false,
-    Flag = "AutoBlinkEnabled",
-    Callback = function(Value)
-        -- Auto blink logic will be handled in the heartbeat loop
-    end
-})
 
--- Create Blink Latency textbox
-PlayerFeaturesSection:Textbox({
-    Name = "BlinkLatency",
-    Flag = "BlinkLatency",
-    Default = "0.5",
-    Callback = function(Value)
-        local numberValue = tonumber(Value)
-        if numberValue then
-            Library.Flags["BlinkLatency"] = math.max(0.1, numberValue) -- Minimum 0.1s latency
-        end
-    end
-})
 
 -- Create Desync keybind
 PlayerFeaturesSection:Keybind({
@@ -871,21 +849,7 @@ RunService.Heartbeat:Connect(function()
     if state and humanoid.Health > 0 then
         Script.Functions.FFlagDesync()
 
-        -- Handle auto blink
-        if Library.Flags["AutoBlinkEnabled"] and Library.Flags["DesyncEnabled"] then
-            local currentTime = os.clock()
-            local blinkLatency = tonumber(Library.Flags["BlinkLatency"]) or 0.5
 
-            if currentTime - lastBlinkTime >= blinkLatency then
-                -- Reset and immediately reactivate desync to create blink effect
-                resetClone()
-                task.wait() -- Small wait to ensure reset is processed
-                state = true
-                createVisualClone()
-                Script.Functions.FFlagDesync()
-                lastBlinkTime = currentTime
-            end
-        end
     elseif state and humanoid.Health <= 0 then
         resetClone()
     end
@@ -1074,6 +1038,14 @@ local originalShadowSettings = {
     ShadowSoftness = Lighting.ShadowSoftness
 }
 
+-- Function to disable shadows
+local function disableShadows()
+    if Library.Flags["DisableShadowsEnabled"] then
+        Lighting.GlobalShadows = false
+        Lighting.ShadowSoftness = 0
+    end
+end
+
 -- Create DisableShadows toggle
 FeaturesSection:Toggle({
     Name = "DisableShadows",
@@ -1081,16 +1053,18 @@ FeaturesSection:Toggle({
     Flag = "DisableShadowsEnabled",
     Callback = function(value)
         if value then
-            -- Disable shadows
-            Lighting.GlobalShadows = false
-            Lighting.ShadowSoftness = 0
-            isShadowsEnabled = false
+            -- Start the shadow disable loop
+            spawn(function()
+                while Library.Flags["DisableShadowsEnabled"] do
+                    disableShadows()
+                    wait(5)
+                end
+            end)
             Library:Notification("Shadows Disabled", 1)
         else
             -- Restore original shadow settings
             Lighting.GlobalShadows = originalShadowSettings.GlobalShadows
             Lighting.ShadowSoftness = originalShadowSettings.ShadowSoftness
-            isShadowsEnabled = true
             Library:Notification("Shadows Restored", 1)
         end
     end
@@ -1251,3 +1225,508 @@ FeaturesSection:Toggle({
         end
     end
 })
+
+-- Initialize AntiMask variables
+local Players = game:GetService("Players")
+local isDisplayNameOverrideEnabled = false
+
+-- Function to update player's display name
+local function updatePlayerDisplayName(player)
+    if not Library.Flags["AntiMaskEnabled"] then
+        -- If disabled, return server value
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.DisplayName = nil
+        end
+        return
+    end
+
+    -- If enabled, set DisplayName
+    pcall(function()
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.DisplayName = player.DisplayName
+        end
+    end)
+end
+
+-- Function to update all players
+local function updateAllPlayers()
+    for _, player in pairs(Players:GetPlayers()) do
+        updatePlayerDisplayName(player)
+    end
+end
+
+-- Player added handler
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        updatePlayerDisplayName(player)
+    end)
+end)
+
+-- Create AntiMask toggle
+FeaturesSection:Toggle({
+    Name = "AntiMask",
+    Default = false,
+    Flag = "AntiMaskEnabled",
+    Callback = function(value)
+        if value then
+            spawn(function()
+                while Library.Flags["AntiMaskEnabled"] do
+                    updateAllPlayers()
+                    wait(5)
+                end
+            end)
+            Library:Notification("AntiMask Enabled", 1)
+        else
+            -- Restore original display names
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.DisplayName = nil
+                end
+            end
+            Library:Notification("AntiMask Disabled", 1)
+        end
+    end
+})
+
+-- Initialize InfiniteZoom variables
+local Players = game:GetService("Players")
+local defaultMaxZoom = Players.LocalPlayer.CameraMaxZoomDistance
+
+-- Create InfiniteZoom toggle
+MovementFeaturesSection:Toggle({
+    Name = "InfiniteZoom",
+    Default = false,
+    Flag = "InfiniteZoomEnabled",
+    Callback = function(value)
+        if value then
+            Players.LocalPlayer.CameraMaxZoomDistance = math.huge
+            Library:Notification("Infinite Zoom Enabled", 1)
+        else
+            Players.LocalPlayer.CameraMaxZoomDistance = defaultMaxZoom
+            Library:Notification("Infinite Zoom Disabled", 1)
+        end
+    end
+})
+
+-- Initialize NoRecoil variables
+local originalNewIndex = nil
+local noRecoilEnabled = false
+
+-- Helper functions for NoRecoil
+local function isframework(scriptInstance)
+    if tostring(scriptInstance) == "Framework" then
+        return true
+    end
+    return false
+end
+
+local function checkArgs(instance, index)
+    if tostring(instance):lower():find("camera") and tostring(index) == "CFrame" then
+        return true
+    end
+    return false
+end
+
+-- Create NoRecoil toggle
+PlayerFeaturesSection:Toggle({
+    Name = "NoRecoil",
+    Default = false,
+    Flag = "NoRecoilEnabled",
+    Callback = function(value)
+        if value then
+            if not noRecoilEnabled then
+                originalNewIndex = hookmetamethod(game, "__newindex", function(self, index, value)
+                    local callingScr = getcallingscript()
+                    
+                    if isframework(callingScr) and checkArgs(self, index) then
+                        return
+                    end
+                    
+                    return originalNewIndex(self, index, value)
+                end)
+                noRecoilEnabled = true
+            end
+            Library:Notification("NoRecoil Enabled", 1)
+        else
+            -- Restore original functionality
+            if noRecoilEnabled and originalNewIndex then
+                hookmetamethod(game, "__newindex", originalNewIndex)
+                noRecoilEnabled = false
+            end
+            Library:Notification("NoRecoil Disabled", 1)
+        end
+    end
+})
+
+-- Initialize ShotSpam variables
+local UserInputService = game:GetService("UserInputService")
+local isFiring = false
+local fireRate = 0.0001
+
+-- Function to reduce cooldowns using debug
+local function reduceCooldowns(tool)
+    if tool and getconnections then
+        for _, connection in ipairs(getconnections(tool.Activated)) do
+            local func = connection.Function
+            if func then
+                local funcInfo = debug.getinfo(func)
+                for i = 1, funcInfo.nups do
+                    local c, n = debug.getupvalue(func, i)
+                    if type(c) == "number" then
+                        debug.setupvalue(func, i, 0.01)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to activate tool
+local function activateTool()
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        reduceCooldowns(tool)
+        if tool.Activate then
+            tool:Activate()
+        end
+    end
+end
+
+-- Create ShotSpam toggle
+PlayerFeaturesSection:Toggle({
+    Name = "ShotSpam",
+    Default = false,
+    Flag = "ShotSpamEnabled",
+    Callback = function(value)
+        if value then
+            -- Start the shot spam loop
+            spawn(function()
+                while Library.Flags["ShotSpamEnabled"] do
+                    if isFiring then
+                        activateTool()
+                    end
+                    task.wait(fireRate)
+                end
+            end)
+            Library:Notification("ShotSpam Enabled", 1)
+        else
+            Library:Notification("ShotSpam Disabled", 1)
+        end
+    end
+})
+
+-- Mouse input tracking
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and not gameProcessed then
+        isFiring = Library.Flags["ShotSpamEnabled"]
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isFiring = false
+    end
+end)
+
+-- Initialize AntiFling variables
+local antiFlingConnection = nil
+local playerAddedConnections = {}
+local lastPosition = nil
+
+-- Function to handle player detection and protection
+local function handlePlayer(player)
+    if player == LocalPlayer then return end
+    
+    local detected = false
+    local character
+    local primaryPart
+    
+    local function onCharacterAdded(newCharacter)
+        character = newCharacter
+        repeat
+            wait()
+            primaryPart = newCharacter:FindFirstChild("HumanoidRootPart")
+        until primaryPart
+        detected = false
+    end
+    
+    local heartbeatConnection
+    
+    -- Setup character monitoring
+    local function setupCharacterMonitoring()
+        if heartbeatConnection then heartbeatConnection:Disconnect() end
+        
+        heartbeatConnection = RunService.Heartbeat:Connect(function()
+            if not Library.Flags["AntiFlingEnabled"] then 
+                heartbeatConnection:Disconnect()
+                return 
+            end
+            
+            if (character and character:IsDescendantOf(workspace)) and (primaryPart and primaryPart:IsDescendantOf(character)) then
+                if primaryPart.AssemblyAngularVelocity.Magnitude > 50 or primaryPart.AssemblyLinearVelocity.Magnitude > 100 then
+                    if not detected then
+                        Library:Notification("Fling Exploit detected: " .. tostring(player), 3)
+                    end
+                    detected = true
+                    
+                    for _, v in ipairs(character:GetDescendants()) do
+                        if v:IsA("BasePart") then
+                            v.CanCollide = false
+                            v.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                            v.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                            v.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    if player.Character then onCharacterAdded(player.Character) end
+    player.CharacterAdded:Connect(onCharacterAdded)
+    setupCharacterMonitoring()
+    
+    return heartbeatConnection
+end
+
+-- Create AntiFling toggle
+PlayerFeaturesSection:Toggle({
+    Name = "AntiFling",
+    Default = false,
+    Flag = "AntiFlingEnabled",
+    Callback = function(value)
+        if value then
+            -- Setup protection for existing players
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    playerAddedConnections[player] = handlePlayer(player)
+                end
+            end
+            
+            -- Monitor new players
+            antiFlingConnection = Players.PlayerAdded:Connect(function(player)
+                playerAddedConnections[player] = handlePlayer(player)
+            end)
+            
+            -- Monitor LocalPlayer
+            local function monitorLocalPlayer()
+                if not LocalPlayer.Character then return end
+                local primaryPart = LocalPlayer.Character.PrimaryPart
+                if primaryPart then
+                    if primaryPart.AssemblyLinearVelocity.Magnitude > 250 or primaryPart.AssemblyAngularVelocity.Magnitude > 250 then
+                        primaryPart.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        primaryPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        if lastPosition then
+                            primaryPart.CFrame = lastPosition
+                        end
+                        Library:Notification("Fling attempt blocked!", 1)
+                    elseif primaryPart.AssemblyLinearVelocity.Magnitude < 50 then
+                        lastPosition = primaryPart.CFrame
+                    end
+                end
+            end
+            
+            spawn(function()
+                while Library.Flags["AntiFlingEnabled"] do
+                    pcall(monitorLocalPlayer)
+                    task.wait()
+                end
+            end)
+            
+            Library:Notification("AntiFling Enabled", 1)
+        else
+            -- Cleanup all connections
+            if antiFlingConnection then
+                antiFlingConnection:Disconnect()
+                antiFlingConnection = nil
+            end
+            
+            for player, connection in pairs(playerAddedConnections) do
+                if connection then
+                    connection:Disconnect()
+                end
+            end
+            playerAddedConnections = {}
+            
+            -- Reset state
+            lastPosition = nil
+            
+            Library:Notification("AntiFling Disabled", 1)
+        end
+    end
+})
+
+-- Initialize ServerJoinScriptShare variables
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+-- Function to generate teleport script
+local function generateTeleportScript()
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    
+    local teleportScript = string.format([[
+local TeleportService = game:GetService("TeleportService")
+TeleportService:TeleportToPlaceInstance(%d, "%s")
+]], placeId, jobId)
+    
+    return teleportScript
+end
+
+-- Create ServerJoinScriptShare button
+FeaturesSection:Button({
+    Name = "ShareServerScript",
+    Callback = function()
+        local script = generateTeleportScript()
+        
+        if setclipboard then
+            setclipboard(script)
+            Library:Notification("Server join script copied! Now u can share it with friends", 10)
+        else
+            Library:Notification("Your executor doesn't support clipboard function!", 3)
+        end
+    end
+})
+
+-- Create FunStuff section
+local FunStuffSection = MiscPage:Section({
+    Name = "Fun Stuff",
+    Side = "right"
+})
+
+-- Initialize chat variables and functions
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+-- Lists of phrases for Rizz Talk and Ad Talk
+local rizzWords = {
+    "Are you a magician? Because whenever I look at you, everyone else disappears.",
+    "Do you have a name, or can I call you mine?",
+    "Is your dad a boxer? Because you’re a knockout!",
+    "Do you believe in love at first sight, or should I walk by again?",
+    "If you were a vegetable, you’d be a cute-cumber!",
+    "Are you from Tennessee? Because you’re the only ten I see!",
+    "Is your name Google? Because you have everything I’m searching for.",
+    "Do you have a map? I keep getting lost in your eyes.",
+    "If you were a fruit, you’d be a fine-apple.",
+    "Are you a parking ticket? Because you’ve got FINE written all over you."
+}
+
+local adWords = {
+    "Get paid to play Roblox! Join us now and start earning!",
+    "Limited time offer: 50% off on all in-game purchases!",
+    "Join our group for exclusive rewards and benefits!",
+    "Be a part of our community and help us grow!",
+    "Check out our game passes for amazing perks!",
+    "Support the game by buying Robux through our link!",
+    "Participate in our events for a chance to win free Robux!",
+    "Follow us on Twitter for the latest news and updates!",
+    "Join our Discord server to connect with other players!",
+    "Visit our website for more information and special offers!"
+}
+
+-- Configuration
+local rizzConfig = {
+    enabled = false,
+    active = false,
+    cooldown = 1,
+    lastSent = 0
+}
+
+local adConfig = {
+    enabled = false,
+    active = false,
+    cooldown = 1,
+    lastSent = 0
+}
+
+-- Get local player and chat event
+local player = Players.LocalPlayer
+local chatEvent = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest")
+
+-- Function to send message
+local function sendMessage(words, config)
+    local currentTime = tick()
+    if currentTime - config.lastSent < config.cooldown then return false end
+    if chatEvent and words then
+        local randomMessage = words[math.random(1, #words)]
+        chatEvent:FireServer(randomMessage, "All")
+        config.lastSent = currentTime
+        return true
+    end
+    return false
+end
+
+-- Create Rizz Talk toggle
+FunStuffSection:Toggle({
+    Name = "Rizz Talk",
+    Default = false,
+    Flag = "RizzTalkEnabled",
+    Callback = function(value)
+        rizzConfig.enabled = value
+        if value then
+            Library:Notification("Rizz Talk Enabled", 1)
+        else
+            rizzConfig.active = false
+            Library:Notification("Rizz Talk Disabled", 1)
+        end
+    end
+})
+
+-- Create Rizz Talk keybind
+FunStuffSection:Keybind({
+    Name = "Rizz Talk Key",
+    Default = Enum.KeyCode.R,
+    Flag = "RizzTalkKey",
+    Mode = "Toggle",
+    Callback = function(state)
+        if not rizzConfig.enabled then return end
+        rizzConfig.active = state
+        if state then
+            sendMessage(rizzWords, rizzConfig)
+        end
+    end
+})
+
+-- Create Ad Talk toggle
+FunStuffSection:Toggle({
+    Name = "Ad Talk",
+    Default = false,
+    Flag = "AdTalkEnabled",
+    Callback = function(value)
+        adConfig.enabled = value
+        if value then
+            Library:Notification("Ad Talk Enabled", 1)
+        else
+            adConfig.active = false
+            Library:Notification("Ad Talk Disabled", 1)
+        end
+    end
+})
+
+-- Create Ad Talk keybind
+FunStuffSection:Keybind({
+    Name = "Ad Talk Key",
+    Default = Enum.KeyCode.T,
+    Flag = "AdTalkKey",
+    Mode = "Toggle",
+    Callback = function(state)
+        if not adConfig.enabled then return end
+        adConfig.active = state
+        if state then
+            sendMessage(adWords, adConfig)
+        end
+    end
+})
+
+-- Main loop for spam handling
+RunService.Heartbeat:Connect(function()
+    if rizzConfig.enabled and rizzConfig.active then
+        sendMessage(rizzWords, rizzConfig)
+    end
+    if adConfig.enabled and adConfig.active then
+        sendMessage(adWords, adConfig)
+    end
+end)
