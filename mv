@@ -456,7 +456,9 @@ KeybindsList:SetPosition("right")
 local AvailableKeybinds = {
     {Flag = "ToggleGUI", Name = "Toggle GUI"},
     {Flag = "RizzTalkKey", Name = "Rizz Talk"},
-    {Flag = "AdTalkKey", Name = "Ad Talk"}
+    {Flag = "AdTalkKey", Name = "Ad Talk"},
+    {Flag = "TrashTalkKey", Name = "Trash Talk"},
+    {Flag = "AutoBuyKey", Name = "AutoBuy"}
     -- Добавь сюда свои кейбинды, если появятся новые
 }
 
@@ -1938,28 +1940,42 @@ local AutoBuySection = MiscPage:Section({
     Side = "left"
 })
 
--- Список предметов для мультибокса
-local autoBuyItems = {
-    {Path = "workspace.Ignored.Shop:GetChildren()[59]", Name = "MaxArmor"},
-    {Path = "workspace.Ignored.Shop['[AK47]']", Name = "[AK47]"},
-    {Path = "workspace.Ignored.Shop['[XM1014]']", Name = "[XM1014]"},
-    {Path = "workspace.Ignored.Shop['[Vintage]']", Name = "[Vintage]"},
-    {Path = "workspace.Ignored.Shop['[Shotgun]']", Name = "[Shotgun]"},
-    {Path = "workspace.Ignored.Shop['[SMG]']", Name = "[SMG]"},
-    {Path = "workspace.Ignored.Shop['[Deagle]']", Name = "[Deagle]"},
-    {Path = "workspace.Ignored.Shop['[Scissors]']", Name = "[Scissors]"},
-    {Path = "workspace.Ignored.Shop['[TacticalShotgun]']", Name = "[TacticalShotgun]"},
-    {Path = "workspace.Ignored.Shop['[Vector]']", Name = "[Vector]"},
-    {Path = "workspace.Ignored.Shop['[Winchester]']", Name = "[Winchester]"}
+-- Категории предметов для автопокупки
+local autoBuyCategories = {
+    Rifles = {
+        {Path = "workspace.Ignored.Shop['[AK47]']", Name = "[AK47]"},
+        {Path = "workspace.Ignored.Shop['[Vector]']", Name = "[Vector]"},
+        {Path = "workspace.Ignored.Shop['[SMG]']", Name = "[SMG]"}
+    },
+    Shotguns = {
+        {Path = "workspace.Ignored.Shop['[XM1014]']", Name = "[XM1014]"},
+        {Path = "workspace.Ignored.Shop['[Shotgun]']", Name = "[Shotgun]"},
+        {Path = "workspace.Ignored.Shop['[TacticalShotgun]']", Name = "[TacticalShotgun]"}
+    },
+    Other = {
+        {Path = "workspace.Ignored.Shop['[Vintage]']", Name = "[Vintage]"},
+        {Path = "workspace.Ignored.Shop['[Scissors]']", Name = "[Scissors]"},
+        {Path = "workspace.Ignored.Shop:GetChildren()[59]", Name = "MaxArmor"}
+    }
 }
-local autoBuyItemNames = {}
-for _, v in ipairs(autoBuyItems) do table.insert(autoBuyItemNames, v.Name) end
+
+-- Создаем списки для каждой категории
+local categoryItems = {}
+local categoryNames = {}
+for category, items in pairs(autoBuyCategories) do
+    categoryItems[category] = {}
+    categoryNames[category] = {}
+    for _, item in ipairs(items) do
+        table.insert(categoryItems[category], item)
+        table.insert(categoryNames[category], item.Name)
+    end
+end
 
 -- Глобальное состояние автопокупки
 local AutoLoadout = {
     Enabled = false,
     Active = false,
-    Mode = "Always",
+    Mode = "Toggle", -- Changed to Toggle mode by default
     Keybind = Enum.KeyCode.F,
     PurchaseDelay = 0.2,
     PurchaseAttempts = 4,
@@ -1968,11 +1984,10 @@ local AutoLoadout = {
     InitialArmorValue = 0,
     MaxClickDistance = 10,
     TeleportOffset = Vector3.new(0, 3, 0),
-    SelectedItems = {}
+    SavePosition = false, -- New: SavePosition feature
+    LastPosition = nil, -- New: Store last position
+    SelectedItems = {} -- Will be populated with selections from all categories
 }
-for _, v in ipairs(autoBuyItems) do
-    table.insert(AutoLoadout.SelectedItems, {Path = v.Path, Name = v.Name, Enabled = true})
-end
 
 -- Toggle: включение всей системы
 AutoBuySection:Toggle({
@@ -1984,44 +1999,77 @@ AutoBuySection:Toggle({
         if val then
             local armor = LocalPlayer:WaitForChild("DataFolder"):WaitForChild("Information"):WaitForChild("Armor")
             AutoLoadout.InitialArmorValue = armor.Value
+            Library:Notification("AutoBuy Enabled", 1)
+        else
+            Library:Notification("AutoBuy Disabled", 1)
         end
     end
 })
 
--- Keybind: режим активности (Hold/Toggle/Always)
+-- Toggle: сохранение позиции
+AutoBuySection:Toggle({
+    Name = "Save Position",
+    Default = false,
+    Flag = "AutoBuySavePos",
+    Callback = function(val)
+        AutoLoadout.SavePosition = val
+        if val then
+            Library:Notification("Position saving enabled", 1)
+        end
+    end
+})
+
+-- Keybind: режим активности (теперь в режиме Toggle по умолчанию)
 AutoBuySection:Keybind({
-    Name = "AutoBuy Keybind",
+    Name = "AutoBuy Key",
     Default = Enum.KeyCode.F,
-    Mode = "Always",
+    Mode = "Toggle",
     Flag = "AutoBuyKey",
     Callback = function(state)
-        if AutoLoadout.Mode == "Hold" then
+        if AutoLoadout.Enabled then
             AutoLoadout.Active = state
-        elseif AutoLoadout.Mode == "Toggle" then
             if state then
-                AutoLoadout.Active = not AutoLoadout.Active
+                Library:Notification("AutoBuy activated", 1)
+            else
+                Library:Notification("AutoBuy deactivated", 1)
             end
-        elseif AutoLoadout.Mode == "Always" then
-            AutoLoadout.Active = true
         end
-        AutoLoadout.Keybind = Library.Flags["AutoBuyKey_KEY"]
-        AutoLoadout.Mode = Library.Flags["AutoBuyKey_KEY STATE"]
     end
 })
 
--- Multibox: выбор предметов для покупки
-AutoBuySection:List({
-    Name = "Items to Buy",
-    Options = autoBuyItemNames,
-    Default = autoBuyItemNames,
-    Max = #autoBuyItemNames,
-    Flag = "AutoBuyItems",
-    Callback = function(selected)
-        for _, item in ipairs(AutoLoadout.SelectedItems) do
-            item.Enabled = table.find(selected, item.Name) ~= nil
+-- Создаем мультибоксы для каждой категории
+for category, items in pairs(categoryNames) do
+    AutoBuySection:List({
+        Name = category .. " Items",
+        Options = items,
+        Default = items,
+        Max = #items,
+        Flag = "AutoBuy" .. category .. "Items",
+        Callback = function(selected)
+            -- Обновляем выбранные предметы для этой категории
+            local categoryIndex = 1
+            for _, item in ipairs(categoryItems[category]) do
+                local isSelected = table.find(selected, item.Name) ~= nil
+                -- Находим существующий предмет или добавляем новый
+                local found = false
+                for i, existingItem in ipairs(AutoLoadout.SelectedItems) do
+                    if existingItem.Name == item.Name then
+                        existingItem.Enabled = isSelected
+                        found = true
+                        break
+                    end
+                end
+                if not found and isSelected then
+                    table.insert(AutoLoadout.SelectedItems, {
+                        Path = item.Path,
+                        Name = item.Name,
+                        Enabled = true
+                    })
+                end
+            end
         end
-    end
-})
+    })
+end
 
 -- === AutoBuy Core Logic ===
 local function getCharacter()
@@ -2062,19 +2110,38 @@ local function purchaseItem(item)
     local character = getCharacter()
     local rootPart = getRootPart(character)
     local itemModel = getObjectByPath(item.Path)
+    
     if itemModel then
         local head = itemModel:FindFirstChild("Head") or itemModel:FindFirstChildWhichIsA("BasePart")
         local clickDetector = itemModel:FindFirstChildWhichIsA("ClickDetector")
+        
         if head and clickDetector then
-            local originalCFrame = rootPart.CFrame
+            -- Сохраняем позицию если включена соответствующая опция
+            if AutoLoadout.SavePosition then
+                AutoLoadout.LastPosition = rootPart.CFrame
+            end
+            
+            -- Перемещаемся к предмету
             rootPart.CFrame = CFrame.new(head.Position + AutoLoadout.TeleportOffset)
+            
+            -- Пытаемся купить предмет
             local attemptInterval = AutoLoadout.PurchaseDelay / AutoLoadout.PurchaseAttempts
             for i = 1, AutoLoadout.PurchaseAttempts do
                 fireclickdetector(clickDetector)
                 wait(attemptInterval)
             end
+            
+            -- Возвращаемся на исходную позицию если включено сохранение позиции
+            if AutoLoadout.SavePosition and AutoLoadout.LastPosition then
+                rootPart.CFrame = AutoLoadout.LastPosition
+            end
+            
             AutoLoadout.LastPurchaseTime = tick()
-            rootPart.CFrame = originalCFrame
+            
+            if AutoLoadout.Notifications then
+                Library:Notification("Purchased " .. item.Name, 1)
+            end
+            
             return true
         end
     end
@@ -2083,22 +2150,23 @@ end
 
 -- Heartbeat loop для автопокупки
 RunService.Heartbeat:Connect(function()
-    -- Синхронизируем режимы с UI
+    -- Синхронизируем состояние с UI
     AutoLoadout.Enabled = Library.Flags["AutoBuyEnabled"]
-    AutoLoadout.Keybind = Library.Flags["AutoBuyKey_KEY"]
-    AutoLoadout.Mode = Library.Flags["AutoBuyKey_KEY STATE"]
-    -- Активность для Always
-    if AutoLoadout.Mode == "Always" then
-        AutoLoadout.Active = AutoLoadout.Enabled
-    end
+    AutoLoadout.SavePosition = Library.Flags["AutoBuySavePos"]
+    AutoLoadout.Notifications = Library.Flags["AutoBuyNotifications"]
+    
     if not AutoLoadout.Enabled or not AutoLoadout.Active then return end
+    
     local character = getCharacter()
     local humanoid = getHumanoid(character)
     if humanoid.Health <= 0 then return end
+    
     local currentTime = tick()
     if currentTime - AutoLoadout.LastPurchaseTime < AutoLoadout.PurchaseDelay then return end
+    
     local armorValue = getArmorValue()
     local needArmor = armorValue < 190
+    
     if AutoLoadout.CurrentItemIndex <= #AutoLoadout.SelectedItems then
         local item = AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex]
         if item.Name == "MaxArmor" and not needArmor then
@@ -2106,6 +2174,7 @@ RunService.Heartbeat:Connect(function()
             AutoLoadout.LastPurchaseTime = tick()
         elseif item.Enabled and (item.Name == "MaxArmor" or not hasItemInBackpackOrCharacter(item.Name)) then
             if purchaseItem(item) then
+                Library:Notification("Purchased " .. item.Name, 1)
                 AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
             else
                 AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
@@ -2118,4 +2187,4 @@ RunService.Heartbeat:Connect(function()
     else
         AutoLoadout.CurrentItemIndex = 1
     end
-end)
+end)    
