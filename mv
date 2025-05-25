@@ -455,6 +455,8 @@ KeybindsList:SetPosition("right")
 -- Список доступных кейбиндов (флаги и названия)
 local AvailableKeybinds = {
     {Flag = "ToggleGUI", Name = "Toggle GUI"},
+    {Flag = "RizzTalkKey", Name = "Rizz Talk"},
+    {Flag = "AdTalkKey", Name = "Ad Talk"}
     -- Добавь сюда свои кейбинды, если появятся новые
 }
 
@@ -1312,6 +1314,63 @@ MovementFeaturesSection:Toggle({
 local originalNewIndex = nil
 local noRecoilEnabled = false
 
+-- Initialize FakeMacro variables
+local fakeMacroConfig = {
+    enabled = false,
+    active = false
+}
+
+local function updateCharacterOrientation()
+    if not fakeMacroConfig.enabled or not fakeMacroConfig.active then
+        return
+    end
+
+    local character = Players.LocalPlayer.Character
+    if not character then return end
+
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+
+    local camera = game.Workspace.CurrentCamera
+    if not camera then return end
+
+    local cameraDirection = camera.CFrame.LookVector
+    humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position) * 
+        CFrame.Angles(0, math.atan2(-cameraDirection.X, -cameraDirection.Z), 0)
+end
+
+-- Create FakeMacro toggle
+MovementFeaturesSection:Toggle({
+    Name = "FakeMacro",
+    Default = false,
+    Flag = "FakeMacroEnabled",
+    Callback = function(value)
+        fakeMacroConfig.enabled = value
+        if value then
+            -- Setup FakeMacro controls
+            UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                if input.KeyCode == Enum.KeyCode.LeftControl and not gameProcessed then
+                    fakeMacroConfig.active = true
+                end
+            end)
+            
+            UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                if input.KeyCode == Enum.KeyCode.LeftControl and not gameProcessed then
+                    fakeMacroConfig.active = false
+                end
+            end)
+
+            -- Connect to RunService
+            RunService.Heartbeat:Connect(updateCharacterOrientation)
+            
+            Library:Notification("FakeMacro Enabled", 1)
+        else
+            fakeMacroConfig.active = false
+            Library:Notification("FakeMacro Disabled", 1)
+        end
+    end
+})
+
 -- Helper functions for NoRecoil
 local function isframework(scriptInstance)
     if tostring(scriptInstance) == "Framework" then
@@ -1587,3 +1646,476 @@ FeaturesSection:Button({
         end
     end
 })
+
+-- Create FunStuff section
+local FunStuffSection = MiscPage:Section({
+    Name = "Fun Stuff",
+    Side = "right"
+})
+
+-- Initialize chat variables and functions
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+-- Lists of phrases for Rizz Talk and Ad Talk
+local rizzWords = {
+    "i want to smash you w my charisma",
+    "are u svngle?",
+    "u making me corny",
+    "wanna make kids?",
+    "slide blue app sweety",
+    "You make my game lag",
+    "Share that drip secret?",
+    "When im look at you, im getting corny",
+    "Are u french cuz eiffel for you",
+    "i like ur arms",
+    "ur feets smells good"
+}
+
+local adWords = {
+    "No skills? Get Full.Skid!",
+    "Why lag? Full.Skid wins!",
+    "Full.Skid makes you a god!",
+    "Lose less with Full.Skid!",
+    "Noobs cry, Full.Skid flies!",
+    "Rule the map with Full.Skid!",
+    "Struggling? Full.Skid's here!",
+    "Full.Skid: your win ticket!",
+    "Be a pro with Full.Skid!",
+    "Full.Skid owns this server!",
+    "No aim? Full.Skid's got it!",
+    "Full.Skid: noob to legend!",
+    "Why try? Full.Skid carries!",
+    "Full.Skid: untouchable vibes!",
+    "Lose again? Try Full.Skid!",
+    "Full.Skid: your skill hack!",
+    "Top the board with Full.Skid!",
+    "Full.Skid: win every match!",
+    "Noobs fear Full.Skid users!",
+    "Full.Skid: game changer!",
+    "Get good? Nah, Full.Skid!",
+    "Full.Skid: pro vibes only!",
+    "Outplay all with Full.Skid!",
+    "Full.Skid: zero to hero!",
+    "Why rage? Full.Skid wins!",
+    "Full.Skid: make 'em jealous!",
+    "Own the game with Full.Skid!",
+    "Full.Skid: no skill needed!",
+    "Be unstoppable with Full.Skid!",
+    "Full.Skid: your victory key!",
+    "No wins? Full.Skid fixes!",
+    "Full.Skid: dominate easy!",
+    "Get Full.Skid, never lose!",
+    "Full.Skid: your aim savior!",
+    "Rule servers with Full.Skid!",
+    "Full.Skid: top score vibes!",
+    "No skill? Full.Skid shines!",
+    "Full.Skid: win like a pro!",
+    "Full.Skid: your clutch tool!",
+    "Make 'em rage with Full.Skid!",
+    "Full.Skid: noob destroyer!",
+    "Get Full.Skid, flex hard!",
+    "Full.Skid: your win streak!",
+    "Outshine all with Full.Skid!",
+    "Full.Skid: game too easy!",
+    "Full.Skid: carry every match!",
+    "No luck? Full.Skid's enough!",
+    "Full.Skid: be the best!",
+    "Win every fight with Full.Skid!",
+    "Full.Skid: your pro pass!",
+    "Full.Skid: rule or drool!",
+    "No aim? Full.Skid nails it!",
+    "Full.Skid: top the lobby!",
+    "Why fail? Full.Skid prevails!",
+    "Full.Skid: your epic edge!",
+    "Clutch every game with Full.Skid!",
+    "Full.Skid: noob to champ!",
+    "Get Full.Skid, own the score!",
+    "Full.Skid: make 'em quit!",
+    "No wins? Full.Skid delivers!",
+    "Full.Skid: your skill boost!",
+    "Dominate with Full.Skid now!",
+    "Full.Skid: win with ease!",
+    "Full.Skid: pro mode on!",
+    "Make waves with Full.Skid!",
+    "Full.Skid: your top play!",
+    "No skill? Full.Skid's got you!",
+    "Full.Skid: lead the pack!",
+    "Win big with Full.Skid!",
+    "Full.Skid: your game hack!",
+    "Outplay noobs with Full.Skid!",
+    "Full.Skid: victory vibes!",
+    "Get Full.Skid, rule the game!",
+    "Full.Skid: no fail zone!",
+    "Full.Skid: your win spark!",
+    "Top every match with Full.Skid!",
+    "Full.Skid: skill made easy!",
+    "No luck? Full.Skid shines!",
+    "Full.Skid: your pro key!",
+    "Own every map with Full.Skid!",
+    "Full.Skid: win streak mode!",
+    "Get Full.Skid, flex big!",
+    "Full.Skid: noob to star!",
+    "Full.Skid: your clutch king!",
+    "Win or cry? Get Full.Skid!",
+    "Full.Skid: rule the lobby!",
+    "Full.Skid: your aim fix!",
+    "No wins? Full.Skid saves!",
+    "Full.Skid: top-tier vibes!",
+    "Full.Skid: make 'em sweat!",
+    "Get Full.Skid, be a legend!",
+    "Full.Skid: win every round!",
+    "Full.Skid: your epic pass!",
+    "No skill? Full.Skid carries!",
+    "Full.Skid: dominate now!",
+    "Full.Skid: your win edge!",
+    "Outshine all with Full.Skid!",
+    "Full.Skid: pro play made easy!"
+}
+
+local trashWords = {
+    "L im crying ",
+    "Bozo",
+    "Dont u need to aim?",
+    "try to look at monitor next time",
+    "Ur need to shot in this game btw",
+    "Is thats was ping?",
+    "Lol",
+    "Your skills on cooldown?",
+    "When u start to play game?"
+}
+
+-- Configuration
+local rizzConfig = {
+    enabled = false,
+    active = false,
+    cooldown = 1,
+    lastSent = 0
+}
+
+local adConfig = {
+    enabled = false,
+    active = false,
+    cooldown = 1,
+    lastSent = 0
+}
+
+local trashConfig = {
+    enabled = false,
+    active = false,
+    cooldown = 1,
+    lastSent = 0
+}
+
+-- Get local player and chat event
+local player = Players.LocalPlayer
+local chatEvent = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest")
+
+-- Function to send message
+local function sendMessage(words, config)
+    local currentTime = tick()
+    if currentTime - config.lastSent < config.cooldown then return false end
+    if chatEvent and words then
+        local randomMessage = words[math.random(1, #words)]
+        chatEvent:FireServer(randomMessage, "All")
+        config.lastSent = currentTime
+        return true
+    end
+    return false
+end
+
+-- Create Rizz Talk toggle
+FunStuffSection:Toggle({
+    Name = "Rizz Talk",
+    Default = false,
+    Flag = "RizzTalkEnabled",
+    Callback = function(value)
+        rizzConfig.enabled = value
+        if value then
+            Library:Notification("Rizz Talk Enabled", 1)
+        else
+            rizzConfig.active = false
+            Library:Notification("Rizz Talk Disabled", 1)
+        end
+    end
+})
+
+-- Create Rizz Talk keybind
+FunStuffSection:Keybind({
+    Name = "Rizz Talk Key",
+    Default = Enum.KeyCode.R,
+    Flag = "RizzTalkKey",
+    Mode = "Toggle",
+    Callback = function(state)
+        if not rizzConfig.enabled then return end
+        rizzConfig.active = state
+        if state then
+            sendMessage(rizzWords, rizzConfig)
+        end
+    end
+})
+
+-- Create Ad Talk toggle
+FunStuffSection:Toggle({
+    Name = "Ad Talk",
+    Default = false,
+    Flag = "AdTalkEnabled",
+    Callback = function(value)
+        adConfig.enabled = value
+        if value then
+            Library:Notification("Ad Talk Enabled", 1)
+        else
+            adConfig.active = false
+            Library:Notification("Ad Talk Disabled", 1)
+        end
+    end
+})
+
+-- Create Ad Talk keybind
+FunStuffSection:Keybind({
+    Name = "Ad Talk Key",
+    Default = Enum.KeyCode.T,
+    Flag = "AdTalkKey",
+    Mode = "Toggle",
+    Callback = function(state)
+        if not adConfig.enabled then return end
+        adConfig.active = state
+        if state then
+            sendMessage(adWords, adConfig)
+        end
+    end
+})
+
+-- Create Trash Talk toggle
+FunStuffSection:Toggle({
+    Name = "Trash Talk",
+    Default = false,
+    Flag = "TrashTalkEnabled",
+    Callback = function(value)
+        trashConfig.enabled = value
+        if value then
+            Library:Notification("Trash Talk Enabled", 1)
+        else
+            trashConfig.active = false
+            Library:Notification("Trash Talk Disabled", 1)
+        end
+    end
+})
+
+-- Create Trash Talk keybind
+FunStuffSection:Keybind({
+    Name = "Trash Talk Key",
+    Default = Enum.KeyCode.Y,
+    Flag = "TrashTalkKey",
+    Mode = "Toggle",
+    Callback = function(state)
+        if not trashConfig.enabled then return end
+        trashConfig.active = state
+        if state then
+            sendMessage(trashWords, trashConfig)
+        end
+    end
+})
+
+-- Main loop for spam handling
+RunService.Heartbeat:Connect(function()
+    if rizzConfig.enabled and rizzConfig.active then
+        sendMessage(rizzWords, rizzConfig)
+    end
+    if adConfig.enabled and adConfig.active then
+        sendMessage(adWords, adConfig)
+    end
+    if trashConfig.enabled and trashConfig.active then
+        sendMessage(trashWords, trashConfig)
+    end
+end)
+
+-- === [AutoBuy Section] ===
+local AutoBuySection = MiscPage:Section({
+    Name = "AutoBuy",
+    Side = "left"
+})
+
+-- Список предметов для мультибокса
+local autoBuyItems = {
+    {Path = "workspace.Ignored.Shop:GetChildren()[59]", Name = "MaxArmor"},
+    {Path = "workspace.Ignored.Shop['[AK47]']", Name = "[AK47]"},
+    {Path = "workspace.Ignored.Shop['[XM1014]']", Name = "[XM1014]"},
+    {Path = "workspace.Ignored.Shop['[Vintage]']", Name = "[Vintage]"},
+    {Path = "workspace.Ignored.Shop['[Shotgun]']", Name = "[Shotgun]"},
+    {Path = "workspace.Ignored.Shop['[SMG]']", Name = "[SMG]"},
+    {Path = "workspace.Ignored.Shop['[Deagle]']", Name = "[Deagle]"},
+    {Path = "workspace.Ignored.Shop['[Scissors]']", Name = "[Scissors]"},
+    {Path = "workspace.Ignored.Shop['[TacticalShotgun]']", Name = "[TacticalShotgun]"},
+    {Path = "workspace.Ignored.Shop['[Vector]']", Name = "[Vector]"},
+    {Path = "workspace.Ignored.Shop['[Winchester]']", Name = "[Winchester]"}
+}
+local autoBuyItemNames = {}
+for _, v in ipairs(autoBuyItems) do table.insert(autoBuyItemNames, v.Name) end
+
+-- Глобальное состояние автопокупки
+local AutoLoadout = {
+    Enabled = false,
+    Active = false,
+    Mode = "Always",
+    Keybind = Enum.KeyCode.F,
+    PurchaseDelay = 0.2,
+    PurchaseAttempts = 4,
+    CurrentItemIndex = 1,
+    LastPurchaseTime = 0,
+    InitialArmorValue = 0,
+    MaxClickDistance = 10,
+    TeleportOffset = Vector3.new(0, 3, 0),
+    SelectedItems = {}
+}
+for _, v in ipairs(autoBuyItems) do
+    table.insert(AutoLoadout.SelectedItems, {Path = v.Path, Name = v.Name, Enabled = true})
+end
+
+-- Toggle: включение всей системы
+AutoBuySection:Toggle({
+    Name = "Enable AutoBuy",
+    Default = false,
+    Flag = "AutoBuyEnabled",
+    Callback = function(val)
+        AutoLoadout.Enabled = val
+        if val then
+            local armor = LocalPlayer:WaitForChild("DataFolder"):WaitForChild("Information"):WaitForChild("Armor")
+            AutoLoadout.InitialArmorValue = armor.Value
+        end
+    end
+})
+
+-- Keybind: режим активности (Hold/Toggle/Always)
+AutoBuySection:Keybind({
+    Name = "AutoBuy Keybind",
+    Default = Enum.KeyCode.F,
+    Mode = "Always",
+    Flag = "AutoBuyKey",
+    Callback = function(state)
+        if AutoLoadout.Mode == "Hold" then
+            AutoLoadout.Active = state
+        elseif AutoLoadout.Mode == "Toggle" then
+            if state then
+                AutoLoadout.Active = not AutoLoadout.Active
+            end
+        elseif AutoLoadout.Mode == "Always" then
+            AutoLoadout.Active = true
+        end
+        AutoLoadout.Keybind = Library.Flags["AutoBuyKey_KEY"]
+        AutoLoadout.Mode = Library.Flags["AutoBuyKey_KEY STATE"]
+    end
+})
+
+-- Multibox: выбор предметов для покупки
+AutoBuySection:List({
+    Name = "Items to Buy",
+    Options = autoBuyItemNames,
+    Default = autoBuyItemNames,
+    Max = #autoBuyItemNames,
+    Flag = "AutoBuyItems",
+    Callback = function(selected)
+        for _, item in ipairs(AutoLoadout.SelectedItems) do
+            item.Enabled = table.find(selected, item.Name) ~= nil
+        end
+    end
+})
+
+-- === AutoBuy Core Logic ===
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+local function getHumanoid(Character)
+    return Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid")
+end
+local function getRootPart(Character)
+    return Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart")
+end
+local function getArmorValue()
+    local armor = LocalPlayer:FindFirstChild("DataFolder") and LocalPlayer.DataFolder:FindFirstChild("Information") and LocalPlayer.DataFolder.Information:FindFirstChild("Armor")
+    return armor and armor.Value or 0
+end
+local function hasItemInBackpackOrCharacter(itemName)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local character = getCharacter()
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == itemName then return true end
+        end
+    end
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item.Name == itemName then return true end
+        end
+    end
+    return false
+end
+local function getObjectByPath(path)
+    local success, obj = pcall(function()
+        return loadstring("return " .. path)()
+    end)
+    return success and obj or nil
+end
+local function purchaseItem(item)
+    local character = getCharacter()
+    local rootPart = getRootPart(character)
+    local itemModel = getObjectByPath(item.Path)
+    if itemModel then
+        local head = itemModel:FindFirstChild("Head") or itemModel:FindFirstChildWhichIsA("BasePart")
+        local clickDetector = itemModel:FindFirstChildWhichIsA("ClickDetector")
+        if head and clickDetector then
+            local originalCFrame = rootPart.CFrame
+            rootPart.CFrame = CFrame.new(head.Position + AutoLoadout.TeleportOffset)
+            local attemptInterval = AutoLoadout.PurchaseDelay / AutoLoadout.PurchaseAttempts
+            for i = 1, AutoLoadout.PurchaseAttempts do
+                fireclickdetector(clickDetector)
+                wait(attemptInterval)
+            end
+            AutoLoadout.LastPurchaseTime = tick()
+            rootPart.CFrame = originalCFrame
+            return true
+        end
+    end
+    return false
+end
+
+-- Heartbeat loop для автопокупки
+RunService.Heartbeat:Connect(function()
+    -- Синхронизируем режимы с UI
+    AutoLoadout.Enabled = Library.Flags["AutoBuyEnabled"]
+    AutoLoadout.Keybind = Library.Flags["AutoBuyKey_KEY"]
+    AutoLoadout.Mode = Library.Flags["AutoBuyKey_KEY STATE"]
+    -- Активность для Always
+    if AutoLoadout.Mode == "Always" then
+        AutoLoadout.Active = AutoLoadout.Enabled
+    end
+    if not AutoLoadout.Enabled or not AutoLoadout.Active then return end
+    local character = getCharacter()
+    local humanoid = getHumanoid(character)
+    if humanoid.Health <= 0 then return end
+    local currentTime = tick()
+    if currentTime - AutoLoadout.LastPurchaseTime < AutoLoadout.PurchaseDelay then return end
+    local armorValue = getArmorValue()
+    local needArmor = armorValue < 190
+    if AutoLoadout.CurrentItemIndex <= #AutoLoadout.SelectedItems then
+        local item = AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex]
+        if item.Name == "MaxArmor" and not needArmor then
+            AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+            AutoLoadout.LastPurchaseTime = tick()
+        elseif item.Enabled and (item.Name == "MaxArmor" or not hasItemInBackpackOrCharacter(item.Name)) then
+            if purchaseItem(item) then
+                AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+            else
+                AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+                AutoLoadout.LastPurchaseTime = tick()
+            end
+        else
+            AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+            AutoLoadout.LastPurchaseTime = tick()
+        end
+    else
+        AutoLoadout.CurrentItemIndex = 1
+    end
+end)
