@@ -1984,8 +1984,7 @@ local AutoLoadout = {
     InitialArmorValue = 0,
     MaxClickDistance = 10,
     TeleportOffset = Vector3.new(0, 3, 0),
-    SavePosition = false, -- New: SavePosition feature
-    LastPosition = nil, -- New: Store last position
+    Notifications = true, -- Notifications enabled by default
     SelectedItems = {} -- Will be populated with selections from all categories
 }
 
@@ -2006,15 +2005,17 @@ AutoBuySection:Toggle({
     end
 })
 
--- Toggle: сохранение позиции
+-- Toggle: включение уведомлений
 AutoBuySection:Toggle({
-    Name = "Save Position",
-    Default = false,
-    Flag = "AutoBuySavePos",
+    Name = "Notifications",
+    Default = true,
+    Flag = "AutoBuyNotifications",
     Callback = function(val)
-        AutoLoadout.SavePosition = val
+        AutoLoadout.Notifications = val
         if val then
-            Library:Notification("Position saving enabled", 1)
+            Library:Notification("AutoBuy notifications enabled", 1)
+        else
+            Library:Notification("AutoBuy notifications disabled", 1)
         end
     end
 })
@@ -2116,9 +2117,8 @@ local function purchaseItem(item)
         local clickDetector = itemModel:FindFirstChildWhichIsA("ClickDetector")
         
         if head and clickDetector then
-            -- Сохраняем позицию если включена соответствующая опция
-            if AutoLoadout.SavePosition then
-                AutoLoadout.LastPosition = rootPart.CFrame
+            if AutoLoadout.Notifications then
+                Library:Notification("Attempting to purchase " .. item.Name, 1)
             end
             
             -- Перемещаемся к предмету
@@ -2126,20 +2126,27 @@ local function purchaseItem(item)
             
             -- Пытаемся купить предмет
             local attemptInterval = AutoLoadout.PurchaseDelay / AutoLoadout.PurchaseAttempts
+            local success = false
+            
             for i = 1, AutoLoadout.PurchaseAttempts do
                 fireclickdetector(clickDetector)
                 wait(attemptInterval)
-            end
-            
-            -- Возвращаемся на исходную позицию если включено сохранение позиции
-            if AutoLoadout.SavePosition and AutoLoadout.LastPosition then
-                rootPart.CFrame = AutoLoadout.LastPosition
+                
+                -- Проверяем успешность покупки
+                if hasItemInBackpackOrCharacter(item.Name) then
+                    success = true
+                    break
+                end
             end
             
             AutoLoadout.LastPurchaseTime = tick()
             
             if AutoLoadout.Notifications then
-                Library:Notification("Purchased " .. item.Name, 1)
+                if success then
+                    Library:Notification("Successfully purchased " .. item.Name, 1)
+                else
+                    Library:Notification("Failed to purchase " .. item.Name, 1)
+                end
             end
             
             return true
@@ -2152,8 +2159,16 @@ end
 RunService.Heartbeat:Connect(function()
     -- Синхронизируем состояние с UI
     AutoLoadout.Enabled = Library.Flags["AutoBuyEnabled"]
-    AutoLoadout.SavePosition = Library.Flags["AutoBuySavePos"]
     AutoLoadout.Notifications = Library.Flags["AutoBuyNotifications"]
+    
+    -- Показываем статус если включены уведомления
+    if AutoLoadout.Enabled and AutoLoadout.Active and AutoLoadout.Notifications then
+        if tick() % 5 < 0.1 then  -- Показывать статус каждые 5 секунд
+            Library:Notification("AutoBuy is running. Current item: " .. 
+                (AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex] and 
+                AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex].Name or "None"), 1)
+        end
+    end
     
     if not AutoLoadout.Enabled or not AutoLoadout.Active then return end
     
