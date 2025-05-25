@@ -456,7 +456,9 @@ KeybindsList:SetPosition("right")
 local AvailableKeybinds = {
     {Flag = "ToggleGUI", Name = "Toggle GUI"},
     {Flag = "RizzTalkKey", Name = "Rizz Talk"},
-    {Flag = "AdTalkKey", Name = "Ad Talk"}
+    {Flag = "AdTalkKey", Name = "Ad Talk"},
+    {Flag = "TrashTalkKey", Name = "Trash Talk"},
+    {Flag = "AutoBuyKey", Name = "AutoBuy"}
     -- Добавь сюда свои кейбинды, если появятся новые
 }
 
@@ -1929,5 +1931,397 @@ RunService.Heartbeat:Connect(function()
     end
     if trashConfig.enabled and trashConfig.active then
         sendMessage(trashWords, trashConfig)
+    end
+end)
+
+-- Create Random Stuff section
+local RandomStuffSection = MiscPage:Section({
+    Name = "Random Stuff",
+    Side = "right"
+})
+
+-- Initialize AnimationManager
+local AnimationManager = {
+    AnimationIds = {
+        ["Floss"] = "rbxassetid://10714340543"
+    },
+    IsPlaying = false,
+    CurrentAnimationIndex = 1,
+    CurrentTrack = nil,
+    AnimationStarted = Instance.new("BindableEvent"),
+    AnimationStopped = Instance.new("BindableEvent"),
+    AnimationListChanged = Instance.new("BindableEvent")
+}
+
+-- Function to check if AnimationId is valid
+local function IsValidAnimationId(id)
+    return string.match(id, "^rbxassetid://%d+$") ~= nil
+end
+
+-- Function to play animation
+local function PlayAnimation(character, animationId)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        warn("Humanoid not found!")
+        return nil
+    end
+
+    local animation = Instance.new("Animation")
+    animation.AnimationId = animationId
+
+    local animationTrack
+    local success, err = pcall(function()
+        animationTrack = humanoid:LoadAnimation(animation)
+    end)
+
+    if not success or not animationTrack then
+        warn("Failed to load animation: " .. tostring(err))
+        return nil
+    end
+
+    animationTrack:Play()
+    AnimationManager.AnimationStarted:Fire(animationId)
+    return animationTrack
+end
+
+-- Function to stop current animation
+local function StopCurrentAnimation()
+    if AnimationManager.CurrentTrack then
+        AnimationManager.CurrentTrack:Stop()
+        AnimationManager.CurrentTrack:Destroy()
+        AnimationManager.CurrentTrack = nil
+        AnimationManager.AnimationStopped:Fire()
+    end
+end
+
+-- Function for animation playback loop
+local function CycleAnimations(character)
+    while AnimationManager.IsPlaying do
+        if not AnimationManager.CurrentTrack then
+            local currentId = AnimationManager.AnimationIds[AnimationManager.CurrentAnimationIndex]
+            AnimationManager.CurrentTrack = PlayAnimation(character, currentId)
+        end
+        
+        if AnimationManager.CurrentTrack then
+            AnimationManager.CurrentTrack.Stopped:Wait()
+            if AnimationManager.IsPlaying then
+                AnimationManager.CurrentTrack = PlayAnimation(character, AnimationManager.AnimationIds[AnimationManager.CurrentAnimationIndex])
+            end
+        else
+            wait(1)
+        end
+    end
+end
+
+-- Add Toggle and Dropdown for AnimRepeater
+RandomStuffSection:Toggle({
+    Name = "AnimRepeater",
+    Default = false,
+    Flag = "AnimRepeaterEnabled",
+    Callback = function(Value)
+        if Value then
+            AnimationManager.IsPlaying = true
+            local character = game:GetService("Players").LocalPlayer.Character
+            if character then
+                coroutine.wrap(function()
+                    CycleAnimations(character)
+                end)()
+            end
+        else
+            AnimationManager.IsPlaying = false
+            StopCurrentAnimation()
+        end
+    end
+})
+
+RandomStuffSection:List({
+    Name = "Animation",
+    Options = {"Crazy Dance"},
+    Default = "Crazy Dance",
+    Flag = "SelectedAnimation",
+    Callback = function(Selected)
+        AnimationManager.CurrentAnimationIndex = Selected
+        if Library.Flags["AnimRepeaterEnabled"] then
+            StopCurrentAnimation()
+        end
+    end
+})
+
+-- Handle character respawning
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    if Library.Flags["AnimRepeaterEnabled"] then
+        coroutine.wrap(function()
+            CycleAnimations(newCharacter)
+        end)()
+    end
+end)
+
+-- === [AutoBuy Section] ===
+local AutoBuySection = MiscPage:Section({
+    Name = "AutoBuy",
+    Side = "left"
+})
+
+-- Категории предметов для автопокупки
+local autoBuyCategories = {
+    Rifles = {
+        {Path = "workspace.Ignored.Shop['[AK47]']", Name = "[AK47]"},
+        {Path = "workspace.Ignored.Shop['[Vector]']", Name = "[Vector]"},
+        {Path = "workspace.Ignored.Shop['[SMG]']", Name = "[SMG]"}
+    },
+    Shotguns = {
+        {Path = "workspace.Ignored.Shop['[XM1014]']", Name = "[XM1014]"},
+        {Path = "workspace.Ignored.Shop['[Shotgun]']", Name = "[Shotgun]"},
+        {Path = "workspace.Ignored.Shop['[TacticalShotgun]']", Name = "[TacticalShotgun]"}
+    },
+    Other = {
+        {Path = "workspace.Ignored.Shop['[Vintage]']", Name = "[Vintage]"},
+        {Path = "workspace.Ignored.Shop['[Scissors]']", Name = "[Scissors]"},
+        {Path = "workspace.Ignored.Shop:GetChildren()[59]", Name = "MaxArmor"}
+    }
+}
+
+-- Создаем списки для каждой категории
+local categoryItems = {}
+local categoryNames = {}
+for category, items in pairs(autoBuyCategories) do
+    categoryItems[category] = {}
+    categoryNames[category] = {}
+    for _, item in ipairs(items) do
+        table.insert(categoryItems[category], item)
+        table.insert(categoryNames[category], item.Name)
+    end
+end
+
+-- Глобальное состояние автопокупки
+local AutoLoadout = {
+    Enabled = false,
+    Active = false,
+    Mode = "Toggle", -- Changed to Toggle mode by default
+    Keybind = Enum.KeyCode.F,
+    PurchaseDelay = 0.2,
+    PurchaseAttempts = 4,
+    CurrentItemIndex = 1,
+    LastPurchaseTime = 0,
+    InitialArmorValue = 0,
+    MaxClickDistance = 10,
+    TeleportOffset = Vector3.new(0, 3, 0),
+    Notifications = true, -- Notifications enabled by default
+    SelectedItems = {} -- Will be populated with selections from all categories
+}
+
+-- Toggle: включение всей системы
+AutoBuySection:Toggle({
+    Name = "Enable AutoBuy",
+    Default = false,
+    Flag = "AutoBuyEnabled",
+    Callback = function(val)
+        AutoLoadout.Enabled = val
+        if val then
+            local armor = LocalPlayer:WaitForChild("DataFolder"):WaitForChild("Information"):WaitForChild("Armor")
+            AutoLoadout.InitialArmorValue = armor.Value
+            Library:Notification("AutoBuy Enabled", 1)
+        else
+            Library:Notification("AutoBuy Disabled", 1)
+        end
+    end
+})
+
+-- Toggle: включение уведомлений
+AutoBuySection:Toggle({
+    Name = "Notifications",
+    Default = true,
+    Flag = "AutoBuyNotifications",
+    Callback = function(val)
+        AutoLoadout.Notifications = val
+        if val then
+            Library:Notification("AutoBuy notifications enabled", 1)
+        else
+            Library:Notification("AutoBuy notifications disabled", 1)
+        end
+    end
+})
+
+-- Keybind: режим активности (теперь в режиме Toggle по умолчанию)
+AutoBuySection:Keybind({
+    Name = "AutoBuy Key",
+    Default = Enum.KeyCode.F,
+    Mode = "Toggle",
+    Flag = "AutoBuyKey",
+    Callback = function(state)
+        if AutoLoadout.Enabled then
+            AutoLoadout.Active = state
+            if state then
+                Library:Notification("AutoBuy activated", 1)
+            else
+                Library:Notification("AutoBuy deactivated", 1)
+            end
+        end
+    end
+})
+
+-- Создаем мультибоксы для каждой категории
+for category, items in pairs(categoryNames) do
+    AutoBuySection:List({
+        Name = category .. " Items",
+        Options = items,
+        Default = items,
+        Max = #items,
+        Flag = "AutoBuy" .. category .. "Items",
+        Callback = function(selected)
+            -- Обновляем выбранные предметы для этой категории
+            local categoryIndex = 1
+            for _, item in ipairs(categoryItems[category]) do
+                local isSelected = table.find(selected, item.Name) ~= nil
+                -- Находим существующий предмет или добавляем новый
+                local found = false
+                for i, existingItem in ipairs(AutoLoadout.SelectedItems) do
+                    if existingItem.Name == item.Name then
+                        existingItem.Enabled = isSelected
+                        found = true
+                        break
+                    end
+                end
+                if not found and isSelected then
+                    table.insert(AutoLoadout.SelectedItems, {
+                        Path = item.Path,
+                        Name = item.Name,
+                        Enabled = true
+                    })
+                end
+            end
+        end
+    })
+end
+
+-- === AutoBuy Core Logic ===
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+local function getHumanoid(Character)
+    return Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid")
+end
+local function getRootPart(Character)
+    return Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart")
+end
+local function getArmorValue()
+    local armor = LocalPlayer:FindFirstChild("DataFolder") and LocalPlayer.DataFolder:FindFirstChild("Information") and LocalPlayer.DataFolder.Information:FindFirstChild("Armor")
+    return armor and armor.Value or 0
+end
+local function hasItemInBackpackOrCharacter(itemName)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local character = getCharacter()
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == itemName then return true end
+        end
+    end
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item.Name == itemName then return true end
+        end
+    end
+    return false
+end
+local function getObjectByPath(path)
+    local success, obj = pcall(function()
+        return loadstring("return " .. path)()
+    end)
+    return success and obj or nil
+end
+local function purchaseItem(item)
+    local character = getCharacter()
+    local rootPart = getRootPart(character)
+    local itemModel = getObjectByPath(item.Path)
+    
+    if itemModel then
+        local head = itemModel:FindFirstChild("Head") or itemModel:FindFirstChildWhichIsA("BasePart")
+        local clickDetector = itemModel:FindFirstChildWhichIsA("ClickDetector")
+        
+        if head and clickDetector then
+            if AutoLoadout.Notifications then
+                Library:Notification("Attempting to purchase " .. item.Name, 1)
+            end
+            
+            -- Перемещаемся к предмету
+            rootPart.CFrame = CFrame.new(head.Position + AutoLoadout.TeleportOffset)
+            
+            -- Пытаемся купить предмет
+            local attemptInterval = AutoLoadout.PurchaseDelay / AutoLoadout.PurchaseAttempts
+            local success = false
+            
+            for i = 1, AutoLoadout.PurchaseAttempts do
+                fireclickdetector(clickDetector)
+                wait(attemptInterval)
+                
+                -- Проверяем успешность покупки
+                if hasItemInBackpackOrCharacter(item.Name) then
+                    success = true
+                    break
+                end
+            end
+            
+            AutoLoadout.LastPurchaseTime = tick()
+            
+            if AutoLoadout.Notifications then
+                if success then
+                    Library:Notification("Successfully purchased " .. item.Name, 1)
+                else
+                    Library:Notification("Failed to purchase " .. item.Name, 1)
+                end
+            end
+            
+            return true
+        end
+    end
+    return false
+end
+
+-- Heartbeat loop для автопокупки
+RunService.Heartbeat:Connect(function()
+    -- Синхронизируем состояние с UI
+    AutoLoadout.Enabled = Library.Flags["AutoBuyEnabled"]
+    AutoLoadout.Notifications = Library.Flags["AutoBuyNotifications"]
+    
+    -- Показываем статус если включены уведомления
+    if AutoLoadout.Enabled and AutoLoadout.Active and AutoLoadout.Notifications then
+        if tick() % 5 < 0.1 then  -- Показывать статус каждые 5 секунд
+            Library:Notification("AutoBuy is running. Current item: " .. 
+                (AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex] and 
+                AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex].Name or "None"), 1)
+        end
+    end
+    
+    if not AutoLoadout.Enabled or not AutoLoadout.Active then return end
+    
+    local character = getCharacter()
+    local humanoid = getHumanoid(character)
+    if humanoid.Health <= 0 then return end
+    
+    local currentTime = tick()
+    if currentTime - AutoLoadout.LastPurchaseTime < AutoLoadout.PurchaseDelay then return end
+    
+    local armorValue = getArmorValue()
+    local needArmor = armorValue < 190
+    
+    if AutoLoadout.CurrentItemIndex <= #AutoLoadout.SelectedItems then
+        local item = AutoLoadout.SelectedItems[AutoLoadout.CurrentItemIndex]
+        if item.Name == "MaxArmor" and not needArmor then
+            AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+            AutoLoadout.LastPurchaseTime = tick()
+        elseif item.Enabled and (item.Name == "MaxArmor" or not hasItemInBackpackOrCharacter(item.Name)) then
+            if purchaseItem(item) then
+                Library:Notification("Purchased " .. item.Name, 1)
+                AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+            else
+                AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+                AutoLoadout.LastPurchaseTime = tick()
+            end
+        else
+            AutoLoadout.CurrentItemIndex = AutoLoadout.CurrentItemIndex + 1
+            AutoLoadout.LastPurchaseTime = tick()
+        end
+    else
+        AutoLoadout.CurrentItemIndex = 1
     end
 end)
