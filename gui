@@ -1314,6 +1314,63 @@ MovementFeaturesSection:Toggle({
 local originalNewIndex = nil
 local noRecoilEnabled = false
 
+-- Initialize FakeMacro variables
+local fakeMacroConfig = {
+    enabled = false,
+    active = false
+}
+
+local function updateCharacterOrientation()
+    if not fakeMacroConfig.enabled or not fakeMacroConfig.active then
+        return
+    end
+
+    local character = Players.LocalPlayer.Character
+    if not character then return end
+
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+
+    local camera = game.Workspace.CurrentCamera
+    if not camera then return end
+
+    local cameraDirection = camera.CFrame.LookVector
+    humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position) * 
+        CFrame.Angles(0, math.atan2(-cameraDirection.X, -cameraDirection.Z), 0)
+end
+
+-- Create FakeMacro toggle
+MovementFeaturesSection:Toggle({
+    Name = "FakeMacro",
+    Default = false,
+    Flag = "FakeMacroEnabled",
+    Callback = function(value)
+        fakeMacroConfig.enabled = value
+        if value then
+            -- Setup FakeMacro controls
+            UserInputService.InputBegan:Connect(function(input, gameProcessed)
+                if input.KeyCode == Enum.KeyCode.LeftControl and not gameProcessed then
+                    fakeMacroConfig.active = true
+                end
+            end)
+            
+            UserInputService.InputEnded:Connect(function(input, gameProcessed)
+                if input.KeyCode == Enum.KeyCode.LeftControl and not gameProcessed then
+                    fakeMacroConfig.active = false
+                end
+            end)
+
+            -- Connect to RunService
+            RunService.Heartbeat:Connect(updateCharacterOrientation)
+            
+            Library:Notification("FakeMacro Enabled", 1)
+        else
+            fakeMacroConfig.active = false
+            Library:Notification("FakeMacro Disabled", 1)
+        end
+    end
+})
+
 -- Helper functions for NoRecoil
 local function isframework(scriptInstance)
     if tostring(scriptInstance) == "Framework" then
