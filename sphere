@@ -1,0 +1,116 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Настройки
+local SPHERE_COUNT = 4
+local ORBIT_RADIUS = 5 -- Радиус орбиты
+local ORBIT_SPEED = 2 -- Скорость вращения (радианы в секунду)
+local SPHERE_SIZE = Vector3.new(0.01, 0.01, 0.01) -- Минимальный размер для невидимости
+
+-- Получение локального игрока
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Поиск торса (Torso или UpperTorso)
+local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+if not torso then
+    error("Torso or UpperTorso not found in character!")
+end
+
+-- Функция для создания сферы с частицами
+local function createSphereWithParticles()
+    local sphere = Instance.new("Part")
+    sphere.Shape = Enum.PartType.Ball
+    sphere.Size = SPHERE_SIZE
+    sphere.Anchored = true
+    sphere.CanCollide = false
+    sphere.Transparency = 1 -- Полная невидимость
+    sphere.Material = Enum.Material.SmoothPlastic
+    sphere.Name = "ForceFieldSphere"
+
+    -- Создание Attachment для частиц
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "Main"
+    attachment.Parent = sphere
+
+    -- Создание ParticleEmitter
+    local particle = Instance.new("ParticleEmitter")
+    particle.Name = "ForceField1"
+    particle.RotSpeed = NumberRange.new(1000)
+    particle.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.new(107/255, 3/5, 2/5)),
+        ColorSequenceKeypoint.new(1, Color3.new(107/255, 3/5, 2/5))
+    })
+    particle.LockedToPart = true
+    particle.Rate = 50
+    particle.VelocitySpread = 360
+    particle.Rotation = NumberRange.new(-360, 360)
+    particle.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1, 0),
+        NumberSequenceKeypoint.new(0.5, 0, 0),
+        NumberSequenceKeypoint.new(1, 1, 0)
+    })
+    particle.Lifetime = NumberRange.new(1)
+    particle.Speed = NumberRange.new(0.01)
+    particle.Texture = "rbxassetid://11973936966"
+    particle.LightEmission = 0.5
+    particle.SpreadAngle = Vector2.new(-360, 360)
+    particle.EmissionDirection = Enum.NormalId.Top
+    particle.Parent = attachment
+
+    return sphere
+end
+
+-- Создание сфер
+local spheres = {}
+for i = 1, SPHERE_COUNT do
+    local sphere = createSphereWithParticles()
+    sphere.Parent = game.Workspace
+    spheres[i] = sphere
+end
+
+-- Функция для обновления позиций сфер
+local function updateSpheres()
+    local time = tick()
+    for i, sphere in ipairs(spheres) do
+        -- Рассчитываем угол для каждой сферы
+        local angle = (i - 1) * (2 * math.pi / SPHERE_COUNT) + (time * ORBIT_SPEED)
+        -- Вычисляем позицию относительно торса
+        local offset = Vector3.new(
+            math.cos(angle) * ORBIT_RADIUS,
+            0,
+            math.sin(angle) * ORBIT_RADIUS
+        )
+        sphere.Position = torso.Position + offset
+    end
+end
+
+-- Обновление позиции сфер при движении персонажа
+RunService.Heartbeat:Connect(function()
+    if torso and torso.Parent then
+        updateSpheres()
+    else
+        -- Если торс пропал (персонаж умер), пытаемся найти новый
+        character = player.Character
+        if character then
+            torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+            if torso then
+                updateSpheres()
+            end
+        end
+    end
+end)
+
+-- Очистка при смерти персонажа
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    torso = newCharacter:WaitForChild("Torso") or newCharacter:WaitForChild("UpperTorso")
+end)
+
+-- Очистка сфер при выходе игрока
+game:BindToClose(function()
+    for _, sphere in ipairs(spheres) do
+        sphere:Destroy()
+    end
+end)
