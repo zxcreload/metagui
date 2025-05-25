@@ -2036,8 +2036,8 @@ RandomStuffSection:Toggle({
 
 RandomStuffSection:List({
     Name = "Animation",
-    Options = {"Crazy Dance"},
-    Default = "Crazy Dance",
+    Options = {"Floss"},
+    Default = "Floss",
     Flag = "SelectedAnimation",
     Callback = function(Selected)
         AnimationManager.CurrentAnimationIndex = Selected
