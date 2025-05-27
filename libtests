@@ -4317,7 +4317,15 @@ end
 --
 function sections:configloader(props)
 	-- // properties
-	local folder = props.folder or props.Folder
+	local folder = props.folder or props.Folder or "replace_configs"
+	-- Create base folder if it doesn't exist
+	if not isfolder(folder) then
+		makefolder(folder)
+	end
+	-- Create configs subfolder
+	if not isfolder(folder.."/configs") then
+		makefolder(folder.."/configs")
+	end
 	-- // variables
 	local configloader = {}
 	-- // main
@@ -4733,12 +4741,14 @@ function sections:configloader(props)
 			v.title:Remove()
 		end
 		createdbuttons = {}
-		for i,v in pairs(listfiles(folder)) do
+		local configsFolder = folder.."/configs"
+		for i,v in pairs(listfiles(configsFolder)) do
 			if v:sub(-4) == ".cfg" then
+				local name = v:sub(#tostring(configsFolder)+2, -5)
 				if i == 1 then 
-					makebutton(v:sub(#tostring(folder)+2, -5),true)
+					makebutton(name, true)
 				else
-					makebutton(v:sub(#tostring(folder)+2, -5),false)
+					makebutton(name, false)
 				end
 			end
 		end
@@ -4793,37 +4803,48 @@ function sections:configloader(props)
 	end)
 	--
 	load[3].MouseButton1Down:Connect(function()
-		self.library:loadconfig("nigga.cfg")
-		load[2].BorderColor3 = self.library.theme.accent
-		wait(0.05)
-		load[2].BorderColor3 = Color3.fromRGB(12,12,12)
+		if selected and selected.name then
+			local configPath = folder.."/configs/"..selected.name..".cfg"
+			self.library:loadconfig(configPath)
+			load[2].BorderColor3 = self.library.theme.accent
+			wait(0.05)
+			load[2].BorderColor3 = Color3.fromRGB(12,12,12)
+		end
 	end)
 	--
 	delete[3].MouseButton1Down:Connect(function()
-		delfile("nigga.cfg")
-		delete[2].BorderColor3 = self.library.theme.accent
-		wait(0.05)
-		delete[2].BorderColor3 = Color3.fromRGB(12,12,12)
-		wait()
-		refresh()
+		if selected and selected.name then
+			local configPath = folder.."/configs/"..selected.name..".cfg"
+			delfile(configPath)
+			delete[2].BorderColor3 = self.library.theme.accent
+			wait(0.05)
+			delete[2].BorderColor3 = Color3.fromRGB(12,12,12)
+			wait()
+			refresh()
+		end
 	end)
 	--
 	save[3].MouseButton1Down:Connect(function()
-		writefile("nigga.cfg", self.library:saveconfig())
-		save[2].BorderColor3 = self.library.theme.accent
-		wait(0.05)
-		save[2].BorderColor3 = Color3.fromRGB(12,12,12)
-		wait()
-		refresh()
+		if selected and selected.name then
+			local configPath = folder.."/configs/"..selected.name..".cfg"
+			writefile(configPath, self.library:saveconfig())
+			save[2].BorderColor3 = self.library.theme.accent
+			wait(0.05)
+			save[2].BorderColor3 = Color3.fromRGB(12,12,12)
+			wait()
+			refresh()
+		end
 	end)
 	--
 	create[3].MouseButton1Down:Connect(function()
-		writefile("nigga.cfg", self.library:saveconfig())
-		create[2].BorderColor3 = self.library.theme.accent
-		wait(0.05)
-		create[2].BorderColor3 = Color3.fromRGB(12,12,12)
-		wait()
-		refresh()
+		if currentname then
+			local configPath = folder.."/configs/"..currentname..".cfg"
+			writefile(configPath, self.library:saveconfig())
+			create[2].BorderColor3 = self.library.theme.accent
+			wait(0.05)
+			create[2].BorderColor3 = Color3.fromRGB(12,12,12)
+			wait()
+			refresh()
 	end)
 	-- // button tbl
 	configloader = {
